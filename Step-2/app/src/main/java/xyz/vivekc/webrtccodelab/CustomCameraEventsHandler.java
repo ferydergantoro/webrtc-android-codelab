@@ -13,7 +13,6 @@ public class CustomCameraEventsHandler implements CameraVideoCapturer.CameraEven
 
     private String logTag = this.getClass().getCanonicalName();
 
-
     @Override
     public void onCameraError(String s) {
         Log.d(logTag, "onCameraError() called with: s = [" + s + "]");
