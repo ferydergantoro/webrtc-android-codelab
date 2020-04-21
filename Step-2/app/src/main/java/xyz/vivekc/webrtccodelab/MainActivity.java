@@ -2,24 +2,25 @@ package xyz.vivekc.webrtccodelab;
 
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 
 import org.webrtc.AudioSource;
 import org.webrtc.AudioTrack;
-import org.webrtc.CameraVideoCapturer;
+import org.webrtc.Camera1Enumerator;
+import org.webrtc.CameraEnumerator;
+import org.webrtc.DefaultVideoDecoderFactory;
+import org.webrtc.DefaultVideoEncoderFactory;
 import org.webrtc.EglBase;
 import org.webrtc.IceCandidate;
+import org.webrtc.Logging;
 import org.webrtc.MediaConstraints;
 import org.webrtc.MediaStream;
 import org.webrtc.PeerConnection;
 import org.webrtc.PeerConnectionFactory;
-import org.webrtc.SdpObserver;
 import org.webrtc.SessionDescription;
 import org.webrtc.SurfaceViewRenderer;
 import org.webrtc.VideoCapturer;
-import org.webrtc.VideoCapturerAndroid;
 import org.webrtc.VideoRenderer;
 import org.webrtc.VideoSource;
 import org.webrtc.VideoTrack;
@@ -27,7 +28,14 @@ import org.webrtc.VideoTrack;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity implements View.OnClickListener {
+//import android.util.Log;
+//import org.webrtc.CameraVideoCapturer;
+//import org.webrtc.SdpObserver;
+//import org.webrtc.VideoCapturerAndroid;
+
+@SuppressWarnings("ALL")
+public class MainActivity extends AppCompatActivity implements View.OnClickListener
+{
     PeerConnectionFactory peerConnectionFactory;
     MediaConstraints audioConstraints;
     MediaConstraints videoConstraints;
@@ -40,11 +48,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     SurfaceViewRenderer localVideoView;
     SurfaceViewRenderer remoteVideoView;
     VideoRenderer localRenderer;
-    VideoRenderer remoteRenderer;
+    //VideoRenderer remoteRenderer;
 
     PeerConnection localPeer, remotePeer;
     Button start, call, hangup;
 
+    EglBase rootEglBase;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -68,7 +77,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     private void initVideos() {
-        EglBase rootEglBase = EglBase.create();
+        rootEglBase = EglBase.create();
         localVideoView.init(rootEglBase.getEglBaseContext(), null);
         remoteVideoView.init(rootEglBase.getEglBaseContext(), null);
         localVideoView.setZOrderMediaOverlay(true);
@@ -78,7 +87,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     // Cycle through likely device names for the camera and return the first
     // capturer that works, or crash if none do.
-    private VideoCapturer getVideoCapturer(CameraVideoCapturer.CameraEventsHandler eventsHandler) {
+    /*private VideoCapturer getVideoCapturer(CameraVideoCapturer.CameraEventsHandler eventsHandler) {
         String[] cameraFacing = {"front", "back"};
         int[] cameraIndex = {0, 1};
         int[] cameraOrientation = {0, 90, 180, 270};
@@ -96,6 +105,45 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             }
         }
         throw new RuntimeException("Failed to open capture");
+    }*/
+
+    private VideoCapturer getVideoCapturer() {
+      //Now create a VideoCapturer instance.
+      VideoCapturer videoCapturerAndroid;
+      videoCapturerAndroid = createCameraCapturer(new Camera1Enumerator(false));
+      return videoCapturerAndroid;
+    }
+
+    private VideoCapturer createCameraCapturer(CameraEnumerator enumerator) {
+      final String[] deviceNames = enumerator.getDeviceNames();
+
+      // First, try to find front facing camera
+      Logging.d("Using camera: ", "Looking for front facing cameras.");
+      for (String deviceName : deviceNames) {
+        if (enumerator.isFrontFacing(deviceName)) {
+          Logging.d("Using camera: ", "Creating front facing camera capturer.");
+          VideoCapturer videoCapturer = enumerator.createCapturer(deviceName, null);
+
+          if (videoCapturer != null) {
+            return videoCapturer;
+          }
+        }
+      }
+
+      // Front facing camera not found, try something else
+      Logging.d("Using camera: ", "Looking for other cameras.");
+      for (String deviceName : deviceNames) {
+        if (!enumerator.isFrontFacing(deviceName)) {
+          Logging.d("Using camera: ", "Creating other camera capturer.");
+          VideoCapturer videoCapturer = enumerator.createCapturer(deviceName, null);
+
+          if (videoCapturer != null) {
+            return videoCapturer;
+          }
+        }
+      }
+
+      return null;
     }
 
 
@@ -123,15 +171,34 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         call.setEnabled(true);
         //Initialize PeerConnectionFactory globals.
         //Params are context, initAudio,initVideo and videoCodecHwAcceleration
-        PeerConnectionFactory.initializeAndroidGlobals(this, true, true, true);
+        //PeerConnectionFactory.initializeAndroidGlobals(this, true, true, true);
+        //PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions.builder(this).setEnableVideoHwAcceleration(true).createInitializationOptions());
 
-        //Create a new PeerConnectionFactory instance.
+        //Create a new PeerConnectionFactory instance - using Hardware encoder and decoder.
+        //PeerConnectionFactory.Options options = new PeerConnectionFactory.Options();
+        //peerConnectionFactory = new PeerConnectionFactory(options);
+        //peerConnectionFactory = PeerConnectionFactory.builder().createPeerConnectionFactory();
+
+        //Initialize PeerConnectionFactory globals.
+        PeerConnectionFactory.InitializationOptions initializationOptions =
+            PeerConnectionFactory.InitializationOptions.builder(this)
+                .createInitializationOptions();
+        PeerConnectionFactory.initialize(initializationOptions);
+
+        //Create a new PeerConnectionFactory instance - using Hardware encoder and decoder.
         PeerConnectionFactory.Options options = new PeerConnectionFactory.Options();
-        peerConnectionFactory = new PeerConnectionFactory(options);
-
+        DefaultVideoEncoderFactory defaultVideoEncoderFactory = new DefaultVideoEncoderFactory(
+            rootEglBase.getEglBaseContext(),  /* enableIntelVp8Encoder */true,  /* enableH264HighProfile */true);
+        DefaultVideoDecoderFactory defaultVideoDecoderFactory = new DefaultVideoDecoderFactory(rootEglBase.getEglBaseContext());
+        peerConnectionFactory = PeerConnectionFactory.builder()
+            .setOptions(options)
+            .setVideoEncoderFactory(defaultVideoEncoderFactory)
+            .setVideoDecoderFactory(defaultVideoDecoderFactory)
+            .createPeerConnectionFactory();
 
         //Now create a VideoCapturer instance. Callback methods are there if you want to do something! Duh!
-        VideoCapturer videoCapturerAndroid = getVideoCapturer(new CustomCameraEventsHandler());
+        //VideoCapturer videoCapturerAndroid = getVideoCapturer(new CustomCameraEventsHandler());
+        VideoCapturer videoCapturerAndroid = getVideoCapturer();
 
         //Create MediaConstraints - Will be useful for specifying video and audio constraints.
         audioConstraints = new MediaConstraints();
@@ -237,7 +304,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         hangup.setEnabled(false);
     }
 
-    private void gotRemoteStream(MediaStream stream) {
+    /*private void gotRemoteStream(MediaStream stream) {
         //we have remote video stream. add to the renderer.
         final VideoTrack videoTrack = stream.videoTracks.getFirst();
         AudioTrack audioTrack = stream.audioTracks.getFirst();
@@ -254,6 +321,22 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             }
         });
 
+    }*/
+
+    /**
+     * Received remote peer's media stream. we will get the first video track and render it
+     */
+    private void gotRemoteStream(MediaStream stream) {
+      //we have remote video stream. add to the renderer.
+      final VideoTrack videoTrack = stream.videoTracks.get(0);
+      runOnUiThread(() -> {
+        try {
+          remoteVideoView.setVisibility(View.VISIBLE);
+          videoTrack.addSink(remoteVideoView);
+        } catch (Exception e) {
+          e.printStackTrace();
+        }
+      });
     }
 
 

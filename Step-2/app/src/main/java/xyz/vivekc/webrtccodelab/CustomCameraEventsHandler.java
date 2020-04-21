@@ -9,7 +9,9 @@ import org.webrtc.CameraVideoCapturer;
  * Created by vivek-3102 on 11/03/17.
  */
 
-public class CustomCameraEventsHandler implements CameraVideoCapturer.CameraEventsHandler {
+@SuppressWarnings("unused")
+public class CustomCameraEventsHandler implements CameraVideoCapturer.CameraEventsHandler
+{
 
     private String logTag = this.getClass().getCanonicalName();
 
@@ -19,11 +21,21 @@ public class CustomCameraEventsHandler implements CameraVideoCapturer.CameraEven
     }
 
     @Override
+    public void onCameraDisconnected() {
+        Log.d(logTag, "onCameraDisconnected() called");
+    }
+
+    @Override
     public void onCameraFreezed(String s) {
         Log.d(logTag, "onCameraFreezed() called with: s = [" + s + "]");
     }
 
     @Override
+    public void onCameraOpening(String s) {
+        Log.d(logTag, "onCameraOpening() called with: s = [" + s + "]");
+    }
+
+    //@Override
     public void onCameraOpening(int i) {
         Log.d(logTag, "onCameraOpening() called with: i = [" + i + "]");
     }
