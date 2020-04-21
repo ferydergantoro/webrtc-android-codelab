@@ -1,11 +1,13 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 27
+    compileSdkVersion 28
+    buildToolsVersion '28.0.3'
     defaultConfig {
         applicationId "xyz.vivekc.webrtccodelab"
-        minSdkVersion 21
-        targetSdkVersion 27
+        minSdkVersion 16
+        //noinspection OldTargetApi
+        targetSdkVersion 28
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
@@ -16,7 +18,6 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
-
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
@@ -24,21 +25,29 @@ android {
 }
 
 dependencies {
-    //    implementation project(':libwebrtc')
-    //        compile fileTree(include: ['*.jar'], dir: 'libs/libwebrtc61')
-    implementation 'org.webrtc:google-webrtc:1.0.28513'
+
+    implementation 'org.webrtc:google-webrtc:1.0.30039'
     //CR 21770
-    androidTestImplementation('com.android.support.test.espresso:espresso-core:2.2.2', {
+    androidTestImplementation('com.android.support.test.espresso:espresso-core:3.0.2', {
         exclude group: 'com.android.support', module: 'support-annotations'
     })
-    implementation 'com.android.support:appcompat-v7:27.0.2'
-    testImplementation 'junit:junit:4.12'
+    implementation 'com.android.support:appcompat-v7:28.0.0'
+    testImplementation 'junit:junit:4.13'
+    //implementation('io.socket:socket.io-client:1.0.0') {
+    //noinspection GradleDependency
     implementation('io.socket:socket.io-client:0.8.3') {
         // excluding org.json which is provided by Android
         exclude group: 'org.json', module: 'json'
     }
-    implementation 'com.google.code.gson:gson:2.8.1'
-    implementation 'com.squareup.retrofit2:retrofit:2.3.0'
-    implementation 'com.squareup.retrofit2:converter-gson:2.3.0'
+    implementation 'com.squareup.retrofit2:retrofit:2.8.1'
+    implementation 'com.squareup.retrofit2:converter-gson:2.8.1'
+
+    implementation 'com.android.support:appcompat-v7:28.0.0'
+    implementation 'com.android.support:design:28.0.0'
 }
 
+repositories {
+    flatDir {
+        dirs 'libs'
+    }
+}

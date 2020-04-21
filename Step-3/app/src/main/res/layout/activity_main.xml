@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="vertical"
+    >
 
     <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
         xmlns:tools="http://schemas.android.com/tools"
@@ -12,21 +15,48 @@
         android:layout_height="match_parent"
         android:layout_weight="1"
         android:orientation="vertical"
-        tools:context="xyz.vivekc.webrtccodelab.MainActivity">
+        android:layout_marginBottom="60dp"
+        tools:context="xyz.vivekc.webrtccodelab.MainActivity"
+        tools:ignore="ObsoleteLayoutParam,RedundantNamespace"
+        >
 
-
-        <org.webrtc.SurfaceViewRenderer
-            android:id="@+id/remote_gl_surface_view"
+        <LinearLayout
             android:layout_width="match_parent"
+            android:layout_height="match_parent"
             android:layout_weight="1"
-            android:visibility="gone"
-            android:layout_height="match_parent" />
+            android:weightSum="2"
+            android:orientation="vertical"
+            tools:ignore="ObsoleteLayoutParam"
+            >
+
+            <org.webrtc.SurfaceViewRenderer
+                android:id="@+id/remote_gl_surface_view"
+                android:layout_width="match_parent"
+                android:layout_weight="1"
+                android:visibility="gone"
+                android:layout_height="match_parent" />
+
+            <org.webrtc.SurfaceViewRenderer
+                android:id="@+id/remote_gl_surface_view2"
+                android:layout_width="match_parent"
+                android:layout_weight="1"
+                android:visibility="gone"
+                android:layout_height="match_parent" />
+
+            <android.support.v7.widget.RecyclerView
+                android:id="@+id/recyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scrollbars="vertical"
+                app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+
+        </LinearLayout>
 
         <org.webrtc.SurfaceViewRenderer
             android:id="@+id/local_gl_surface_view"
             android:layout_width="match_parent"
-            android:layout_gravity="bottom|end"
-            android:layout_height="match_parent" />
+            android:layout_gravity="top|end"
+            android:layout_height="match_parent"/>
 
 
 
@@ -36,12 +66,45 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:background="@android:color/white">
         <Button
             android:layout_width="wrap_content"
-            android:layout_margin="5dp"
             android:layout_height="wrap_content"
-            android:id="@+id/end_call"
-            android:text="Hangup" />
+            android:layout_weight="1"
+            android:id="@+id/start_call"
+            android:layout_margin="5dp"
+            style="@android:style/Widget.Material.Button.Borderless.Colored"
+            android:text="Start Call"
+            tools:targetApi="lollipop"
+            tools:ignore="HardcodedText"
+            />
+
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/init_call"
+            style="@android:style/Widget.Material.Button.Borderless.Colored"
+            android:layout_margin="5dp"
+            android:layout_weight="1"
+            android:enabled="false"
+            android:text="Call"
+            android:visibility="gone"
+            tools:targetApi="lollipop"
+            tools:ignore="HardcodedText"
+            />
+
+      <Button
+          android:layout_width="wrap_content"
+          android:layout_margin="5dp"
+          style="@android:style/Widget.Material.Button.Borderless.Colored"
+          android:layout_height="wrap_content"
+          android:layout_weight="1"
+          android:id="@+id/end_call"
+          android:enabled="false"
+          android:text="Hangup"
+          tools:targetApi="lollipop"
+          tools:ignore="HardcodedText"
+          />
     </LinearLayout>
 </FrameLayout>

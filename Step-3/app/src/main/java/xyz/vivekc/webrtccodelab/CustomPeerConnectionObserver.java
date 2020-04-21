@@ -8,6 +8,8 @@ import org.webrtc.MediaStream;
 import org.webrtc.PeerConnection;
 import org.webrtc.RtpReceiver;
 
+import java.util.Arrays;
+
 /**
  * Webrtc_Step2
  * Created by vivek-3102 on 11/03/17.
@@ -49,7 +51,8 @@ class CustomPeerConnectionObserver implements PeerConnection.Observer {
 
     @Override
     public void onIceCandidatesRemoved(IceCandidate[] iceCandidates) {
-        Log.d(logTag, "onIceCandidatesRemoved() called with: iceCandidates = [" + iceCandidates + "]");
+        Log.d(logTag, "onIceCandidatesRemoved() called with: iceCandidates = [" + Arrays
+            .toString(iceCandidates) + "]");
     }
 
     @Override
@@ -74,6 +77,7 @@ class CustomPeerConnectionObserver implements PeerConnection.Observer {
 
     @Override
     public void onAddTrack(RtpReceiver rtpReceiver, MediaStream[] mediaStreams) {
-        Log.d(logTag, "onAddTrack() called with: rtpReceiver = [" + rtpReceiver + "], mediaStreams = [" + mediaStreams + "]");
+        Log.d(logTag, "onAddTrack() called with: rtpReceiver = [" + rtpReceiver + "], mediaStreams = [" + Arrays
+            .toString(mediaStreams) + "]");
     }
 }

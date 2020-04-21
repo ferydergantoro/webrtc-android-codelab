@@ -26,14 +26,25 @@ import io.socket.client.Socket;
  * Created by vivek-3102 on 11/03/17.
  */
 
+@SuppressWarnings("ALL")
 class SignallingClient {
     private static SignallingClient instance;
-    private String roomName = null;
+    String roomName = null;
     private Socket socket;
     boolean isChannelReady = false;
     boolean isInitiator = false;
     boolean isStarted = false;
+    String clientID = null;
     private SignalingInterface callback;
+
+    private void resetAll() {
+        roomName = null;
+        isChannelReady = false;
+        isInitiator = false;
+        isStarted = false;
+        clientID = null;
+        socket = null;
+    }
 
     //This piece of code should not go into production!!
     //This will help in cases where the node server is running in non-https server and you want to ignore the warnings
@@ -58,7 +69,7 @@ class SignallingClient {
         }
         if (instance.roomName == null) {
             //set the room name here
-            instance.roomName = "vivek17";
+            instance.roomName = "vivek171";
         }
         return instance;
     }
@@ -71,7 +82,9 @@ class SignallingClient {
             IO.setDefaultHostnameVerifier((hostname, session) -> true);
             IO.setDefaultSSLContext(sslcontext);
             //set the socket.io url here
-            socket = IO.socket("http://192.168.178.207:1794");
+            //socket = IO.socket("http://127.0.0.1:1794");
+            socket = IO.socket("http://192.168.43.105:1794");
+            //socket = IO.socket("http://ns2.eluon.co.id:8282");
             socket.connect();
             Log.d("SignallingClient", "init() called");
 
@@ -82,6 +95,7 @@ class SignallingClient {
             //room created event.
             socket.on("created", args -> {
                 Log.d("SignallingClient", "created call() called with: args = [" + Arrays.toString(args) + "]");
+                clientID = String.valueOf(args[1]);
                 isInitiator = true;
                 callback.onCreatedRoom();
             });
@@ -93,14 +107,23 @@ class SignallingClient {
             socket.on("join", args -> {
                 Log.d("SignallingClient", "join call() called with: args = [" + Arrays.toString(args) + "]");
                 isChannelReady = true;
-                callback.onNewPeerJoined();
+                String client_id = String.valueOf(args[1]);
+                if (clientID != null && clientID.equals(client_id)) {
+                    isInitiator = true;
+                }
+                callback.onNewPeerJoined(client_id);
             });
 
             //when you joined a chat room successfully
             socket.on("joined", args -> {
                 Log.d("SignallingClient", "joined call() called with: args = [" + Arrays.toString(args) + "]");
                 isChannelReady = true;
-                callback.onJoinedRoom();
+                String client_id = String.valueOf(args[1]);
+                if (clientID == null) {
+                    clientID = client_id;
+                    isInitiator = true;
+                }
+                callback.onJoinedRoom(client_id);
             });
 
             //log event
@@ -116,7 +139,11 @@ class SignallingClient {
                     Log.d("SignallingClient", "String received :: " + args[0]);
                     String data = (String) args[0];
                     if (data.equalsIgnoreCase("got user media")) {
-                        callback.onTryToStart();
+                        if (isChannelReady) {
+                            callback.onTryToStart();
+                        } else if (clientID != null && !clientID.isEmpty()){
+                            emitJoin(roomName, clientID);
+                        }
                     }
                     if (data.equalsIgnoreCase("bye")) {
                         callback.onRemoteHangUp(data);
@@ -152,7 +179,18 @@ class SignallingClient {
 
     public void emitMessage(String message) {
         Log.d("SignallingClient", "emitMessage() called with: message = [" + message + "]");
-        socket.emit("message", message);
+        socket.emit("message", message, roomName);
+    }
+
+    public void emitJoin() {
+        if (!isChannelReady && clientID != null && !clientID.isEmpty()){
+            emitJoin(roomName, clientID);
+        }
+    }
+
+    private void emitJoin(String room, String clientID) {
+        Log.d("SignallingClient", "emitJoin() called with: event = [" + "join" + "], room = [" + room + "], clientID = [" + clientID + "]");
+        socket.emit("join", room, clientID);
     }
 
     public void emitMessage(SessionDescription message) {
@@ -162,7 +200,7 @@ class SignallingClient {
             obj.put("type", message.type.canonicalForm());
             obj.put("sdp", message.description);
             Log.d("emitMessage", obj.toString());
-            socket.emit("message", obj);
+            socket.emit("message", obj, roomName);
             Log.d("vivek1794", obj.toString());
         } catch (JSONException e) {
             e.printStackTrace();
@@ -176,16 +214,19 @@ class SignallingClient {
             object.put("label", iceCandidate.sdpMLineIndex);
             object.put("id", iceCandidate.sdpMid);
             object.put("candidate", iceCandidate.sdp);
-            socket.emit("message", object);
+            socket.emit("message", object, roomName);
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
     
     public void close() {
-        socket.emit("bye", roomName);
-        socket.disconnect();
-        socket.close();
+        if (socket != null) {
+            socket.emit("bye", roomName, clientID);
+            socket.disconnect();
+            socket.close();
+        }
+        resetAll();
     }
 
     interface SignalingInterface {
@@ -201,8 +242,8 @@ class SignallingClient {
 
         void onCreatedRoom();
 
-        void onJoinedRoom();
+        void onJoinedRoom(String clientid);
 
-        void onNewPeerJoined();
+        void onNewPeerJoined(String clientid);
     }
 }
