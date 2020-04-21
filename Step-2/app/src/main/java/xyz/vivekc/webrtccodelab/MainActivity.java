@@ -55,7 +55,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         initVideos();
     }
 
-
     private void initViews() {
         start = (Button) findViewById(R.id.start_call);
         call = (Button) findViewById(R.id.init_call);

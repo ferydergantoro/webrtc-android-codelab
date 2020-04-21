@@ -12,8 +12,7 @@ import org.webrtc.PeerConnection;
  * Created by vivek-3102 on 11/03/17.
  */
 
-class CustomPeerConnectionObserver implements PeerConnection.Observer
-{
+class CustomPeerConnectionObserver implements PeerConnection.Observer {
 
     private String logTag = this.getClass().getCanonicalName();
 
