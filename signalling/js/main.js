@@ -1,5 +1,7 @@
 'use strict';
 
+var connections = {};
+
 var isChannelReady = false;
 var isInitiator = false;
 var isStarted = false;
@@ -20,7 +22,7 @@ var pcConfig = {
 // Set up audio and video regardless of what devices are present.
 var sdpConstraints = {
   'mandatory': {
-    'OfferToReceiveAudio': false,
+    'OfferToReceiveAudio': true,
     'OfferToReceiveVideo': true
   }
 };
