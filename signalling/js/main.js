@@ -10,14 +10,17 @@ var turnReady;
 
 var pcConfig = {
   'iceServers': [{
-    'url': 'stun:stun.l.google.com:19302'
+    //'url': 'stun:stun.l.google.com:19302'
+    'url' : 'turn:202.51.110.214:8282',
+    'username' : 'eluon',
+    'credential' : 'eluon123'
   }]
 };
 
 // Set up audio and video regardless of what devices are present.
 var sdpConstraints = {
   'mandatory': {
-    'OfferToReceiveAudio': true,
+    'OfferToReceiveAudio': false,
     'OfferToReceiveVideo': true
   }
 };
@@ -25,18 +28,66 @@ var sdpConstraints = {
 /////////////////////////////////////////////
 
 // Could prompt for room name:
-var room = prompt('Enter room name:', 'vivek17');
+var room = prompt('Enter room name:', 'vivek171');
+var clientID = null;
 
 if (room === '') {
-  room = 'vivek17';
+  room = 'vivek171';
 }
 
-var socket = io.connect("http://192.168.43.139:1794");
+var localVideo = document.querySelector('#localVideo');
+var remoteVideo = document.querySelector('#remoteVideo');
+
+navigator.mediaDevices.getUserMedia({
+  audio: true,
+  video: true
+})
+.then(gotStream)
+.catch(function(e) {
+  alert('getUserMedia() error: ' + e.name);
+});
+
+function gotStream(stream) {
+  trace('Requesting local stream.');
+  console.log('Adding local stream.');
+  if ('srcObject' in localVideo) {
+    localVideo.srcObject = stream;
+  } else {
+    // deprecated
+    localVideo.src = window.URL.createObjectURL(stream);
+  }
+  localStream = stream;
+  trace('Received local stream.');
+  sendMessage('got user media');
+  if (isInitiator) {
+    maybeStart();
+  }
+}
+
+var constraints = {
+  video: true,
+  audio: true
+};
+
+console.log('Getting user media with constraints', constraints);
+
+if (location.hostname !== 'localhost') {
+ // requestTurn(
+//    'https://computeengineondemand.appspot.com/turn?username=41784574&key=4080218913'
+   // 'https://service.xirsys.com/ice?ident=vivekchanddru&secret=ad6ce53a-e6b5-11e6-9685-937ad99985b9&domain=www.vivekc.xyz&application=default&room=testing&secure=1'
+//);
+}
+
+////////////////////////////////////////////////////
+
+var socket = io.connect("http://127.0.0.1:1794");
+//var socket = io.connect("http://ns2.eluon.co.id:8282");
 socket.emit('create or join', room);
 console.log('Attempted to create or join room', room);
 
-socket.on('created', function(room) {
-  console.log('Created room ' + room);
+socket.on('created', function(room, client_id) {
+  console.log('Created room : ' + room + ', Client ID : ' + client_id);
+  clientID = client_id;
   isInitiator = true;
 });
 
@@ -44,15 +95,24 @@ socket.on('full', function(room) {
   console.log('Room ' + room + ' is full');
 });
 
-socket.on('join', function (room){
-  console.log('Another peer made a request to join room ' + room);
+socket.on('join', function (room, client_id){
+  console.log('Another peer (Client ID: ' + client_id + ') made a request to join room ' + room);
   console.log('This peer is the initiator of room ' + room + '!');
   isChannelReady = true;
+  // if (clientID != client_id) {
+  //   maybeStart();
+  // }
 });
 
-socket.on('joined', function(room) {
-  console.log('joined: ' + room);
+socket.on('joined', function(room, client_id) {
+  console.log('Client ID: ' + client_id + ' has been joined in room: ' + room);
   isChannelReady = true;
+  if (clientID == null) {
+    clientID = client_id;
+  }
+  if (clientID == client_id) {
+    maybeStart();
+  }
 });
 
 socket.on('log', function(array) {
@@ -63,7 +123,12 @@ socket.on('log', function(array) {
 
 function sendMessage(message) {
   console.log('Client sending message: ', message);
-  socket.emit('message', message);
+  socket.emit('message', message, room);
+}
+
+function sendRequestJoin(room, client_id) {
+  console.log('Client sending request join with room: ' + room + ", Client ID: " + client_id);
+  socket.emit('join', room, client_id);
 }
 
 // This client receives a message
@@ -71,7 +136,11 @@ socket.on('message', function(message) {
   console.log('Client received message:', message);
 
   if (message === 'got user media') {
-    maybeStart();
+    if (isChannelReady) {
+      maybeStart();
+    } else if (clientID != null && clientID != ''){
+      sendRequestJoin(room, clientID);
+    }
   } else if (message.type === 'offer') {
     if (!isInitiator && !isStarted) {
       maybeStart();
@@ -92,59 +161,28 @@ socket.on('message', function(message) {
   }
 });
 
-////////////////////////////////////////////////////
-
-var localVideo = document.querySelector('#localVideo');
-var remoteVideo = document.querySelector('#remoteVideo');
-
-navigator.mediaDevices.getUserMedia({
-  audio: true,
-  video: true
-})
-.then(gotStream)
-.catch(function(e) {
-  alert('getUserMedia() error: ' + e.name);
-});
-
-function gotStream(stream) {
-  console.log('Adding local stream.');
-  if ('srcObject' in localVideo) {
-    localVideo.srcObject = stream;
-  } else {
-    // deprecated
-    localVideo.src = window.URL.createObjectURL(stream);
-  }
-  localStream = stream;
-  sendMessage('got user media');
-  if (isInitiator) {
-    maybeStart();
-  }
-}
-
-var constraints = {
-  video: true
-};
-
-console.log('Getting user media with constraints', constraints);
-
-if (location.hostname !== 'localhost') {
-  requestTurn(
-//    'https://computeengineondemand.appspot.com/turn?username=41784574&key=4080218913'
-    'https://service.xirsys.com/ice?ident=vivekchanddru&secret=ad6ce53a-e6b5-11e6-9685-937ad99985b9&domain=www.vivekc.xyz&application=default&room=testing&secure=1'
-  
-);
-}
+/////////////////////////////////////////////////////////
 
 function maybeStart() {
   console.log('>>>>>>> maybeStart() ', isStarted, localStream, isChannelReady);
-  if (!isStarted && typeof localStream !== 'undefined' && isChannelReady) {
-    console.log('>>>>>> creating peer connection');
-    createPeerConnection();
-    pc.addStream(localStream);
-    isStarted = true;
-    console.log('isInitiator', isInitiator);
-    if (isInitiator) {
-      doCall();
+  if ((isInitiator || !isStarted) && typeof localStream !== 'undefined') {
+    if (isChannelReady) {
+      if (!isStarted) {
+        console.log('>>>>>> creating peer connection');
+        createPeerConnection();
+      }
+      // Add local stream to connection and create offer to connect.
+      pc.addStream(localStream);
+      trace('Added local stream to localPeerConnection.');
+      isStarted = true;
+      console.log('isInitiator', isInitiator);
+      if (isInitiator) {
+        doCall();
+      }
+    } else {
+      if (!isChannelReady && clientID != null && clientID != ''){
+        sendRequestJoin(room, clientID);
+      }
     }
   }
 }
@@ -156,8 +194,26 @@ window.onbeforeunload = function() {
 /////////////////////////////////////////////////////////
 
 function createPeerConnection() {
+  trace('Starting create peer connection');
+
+  // // Get local media stream tracks.
+  // const videoTracks = localStream.getVideoTracks();
+  // const audioTracks = localStream.getAudioTracks();
+  // if (videoTracks.length > 0) {
+  //   trace(`Using video device: ${videoTracks[0].label}.`);
+  // }
+  // if (audioTracks.length > 0) {
+  //   trace(`Using audio device: ${audioTracks[0].label}.`);
+  // }
+
+  const servers = null;  // Allows for RTC server configuration.
   try {
-    pc = new RTCPeerConnection(null);
+    pc = new RTCPeerConnection(servers);
+    trace('Created local peer connection object localPeerConnection.');
+
+    pc.addEventListener('icecandidate', handleConnection);
+    pc.addEventListener('iceconnectionstatechange', handleConnectionChange);
+
     pc.onicecandidate = handleIceCandidate;
     if ('ontrack' in pc) {
       pc.ontrack = handleRemoteStreamAdded;
@@ -172,6 +228,29 @@ function createPeerConnection() {
     alert('Cannot create RTCPeerConnection object.');
     return;
   }
+}
+
+// Define RTC peer connection behavior.
+
+// Logs error when setting session description fails.
+function setSessionDescriptionError(error) {
+  trace(`Failed to create session description: ${error.toString()}.`);
+}
+
+// Logs success when setting session description.
+function setDescriptionSuccess(peerConnection, functionName) {
+  const peerName = getPeerName(peerConnection);
+  trace(`${peerName} ${functionName} complete.`);
+}
+
+// Logs success when localDescription is set.
+function setLocalDescriptionSuccess(peerConnection) {
+  setDescriptionSuccess(peerConnection, 'setLocalDescription');
+}
+
+// Logs success when remoteDescription is set.
+function setRemoteDescriptionSuccess(peerConnection) {
+  setDescriptionSuccess(peerConnection, 'setRemoteDescription');
 }
 
 function handleIceCandidate(event) {
@@ -203,29 +282,75 @@ function handleCreateOfferError(event) {
   console.log('createOffer() error: ', event);
 }
 
+// Connects with new peer candidate.
+function handleConnection(event) {
+  const peerConnection = event.target;
+  const iceCandidate = event.candidate;
+
+  if (iceCandidate) {
+    const newIceCandidate = new RTCIceCandidate(iceCandidate);
+    const otherPeer = getOtherPeer(peerConnection);
+
+    if (otherPeer != null) {
+      otherPeer.addIceCandidate(newIceCandidate)
+        .then(() => {
+          handleConnectionSuccess(peerConnection);
+        }).catch((error) => {
+          handleConnectionFailure(peerConnection, error);
+        });
+
+      trace(`${getPeerName(peerConnection)} ICE candidate:\n` +
+            `${event.candidate.candidate}.`);
+    }
+  }
+}
+
+// Logs that the connection succeeded.
+function handleConnectionSuccess(peerConnection) {
+  trace(`${getPeerName(peerConnection)} addIceCandidate success.`);
+};
+
+// Logs that the connection failed.
+function handleConnectionFailure(peerConnection, error) {
+  trace(`${getPeerName(peerConnection)} failed to add ICE Candidate:\n`+
+        `${error.toString()}.`);
+}
+
+// Logs changes to the connection state.
+function handleConnectionChange(event) {
+  const peerConnection = event.target;
+  console.log('ICE state change event: ', event);
+  trace(`${getPeerName(peerConnection)} ICE state: ` +
+        `${peerConnection.iceConnectionState}.`);
+}
+
 function doCall() {
   console.log('Sending offer to peer');
   pc.createOffer(setLocalAndSendMessage, handleCreateOfferError);
 }
 
 function doAnswer() {
+  trace('createAnswer start.');
   console.log('Sending answer to peer.');
   pc.createAnswer().then(
     setLocalAndSendMessage,
-    onCreateSessionDescriptionError
+    setSessionDescriptionError
   );
 }
 
 function setLocalAndSendMessage(sessionDescription) {
+  trace(`Offer from localPeerConnection:\n${sessionDescription.sdp}`);
+
   // Set Opus as the preferred codec in SDP if Opus is present.
   //  sessionDescription.sdp = preferOpus(sessionDescription.sdp);
-  pc.setLocalDescription(sessionDescription);
+  trace('localPeerConnection setLocalDescription start.');
+  pc.setLocalDescription(sessionDescription)
+  .then(() => {
+    setLocalDescriptionSuccess(pc);
+  }).catch(setSessionDescriptionError);
+  
   console.log('setLocalAndSendMessage sending message', sessionDescription);
   sendMessage(sessionDescription);
-}
-
-function onCreateSessionDescriptionError(error) {
-  trace('Failed to create session description: ' + error.toString());
 }
 
 function requestTurn(turnURL) {
@@ -263,17 +388,20 @@ function handleRemoteStreamRemoved(event) {
 
 function hangup() {
   console.log('Hanging up.');
+  clientID = null;
   stop();
   sendMessage('bye');
 }
 
 function handleRemoteHangup() {
   console.log('Session terminated.');
+  clientID = null;
   stop();
   isInitiator = false;
 }
 
 function stop() {
+  clientID = null;
   isStarted = false;
   // isAudioMuted = false;
   // isVideoMuted = false;
@@ -357,4 +485,26 @@ function removeCN(sdpLines, mLineIndex) {
 
   sdpLines[mLineIndex] = mLineElements.join(' ');
   return sdpLines;
+}
+
+// Define helper functions.
+
+// Gets the "other" peer connection.
+function getOtherPeer(peerConnection) {
+  return (peerConnection === pc) ?
+      null : pc;
+}
+
+// Gets the name of a certain peer connection.
+function getPeerName(peerConnection) {
+  return (peerConnection === pc) ?
+      'localPeerConnection' : 'remotePeerConnection';
+}
+
+// Logs an action (text) and the time when it happened on the console.
+function trace(text) {
+  text = text.trim();
+  const now = (window.performance.now() / 1000).toFixed(3);
+
+  console.log(now, text);
 }
