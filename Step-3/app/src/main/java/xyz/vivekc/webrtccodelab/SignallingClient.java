@@ -74,7 +74,8 @@ class SignallingClient {
         return instance;
     }
 
-    public void init(SignalingInterface signalingInterface) {
+    public void init(String roomName, SignalingInterface signalingInterface) {
+        this.roomName = roomName;
         this.callback = signalingInterface;
         try {
             SSLContext sslcontext = SSLContext.getInstance("TLS");
@@ -83,13 +84,13 @@ class SignallingClient {
             IO.setDefaultSSLContext(sslcontext);
             //set the socket.io url here
             //socket = IO.socket("http://127.0.0.1:1794");
-            socket = IO.socket("http://192.168.43.105:1794");
-            //socket = IO.socket("http://ns2.eluon.co.id:8282");
+            //socket = IO.socket("http://192.168.43.105:1794");
+            socket = IO.socket("https://202.51.110.214:8092");
             socket.connect();
             Log.d("SignallingClient", "init() called");
 
-            if (!roomName.isEmpty()) {
-                emitInitStatement(roomName);
+            if (!this.roomName.isEmpty()) {
+                emitInitStatement(this.roomName);
             }
 
             //room created event.
@@ -108,9 +109,9 @@ class SignallingClient {
                 Log.d("SignallingClient", "join call() called with: args = [" + Arrays.toString(args) + "]");
                 isChannelReady = true;
                 String client_id = String.valueOf(args[1]);
-                if (clientID != null && clientID.equals(client_id)) {
+                /*if (clientID != null && clientID.equals(client_id)) {
                     isInitiator = true;
-                }
+                }*/
                 callback.onNewPeerJoined(client_id);
             });
 
@@ -121,7 +122,10 @@ class SignallingClient {
                 String client_id = String.valueOf(args[1]);
                 if (clientID == null) {
                     clientID = client_id;
-                    isInitiator = true;
+                    //isInitiator = true;
+                }
+                if (clientID != null && clientID.equals(client_id)) {
+                    callback.onTryToStart();
                 }
                 callback.onJoinedRoom(client_id);
             });

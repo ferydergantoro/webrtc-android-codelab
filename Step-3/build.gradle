@@ -4,6 +4,9 @@ buildscript {
     repositories {
         jcenter()
         google()
+        /*mavenCentral()
+        maven { url "http://repository.jsweet.org/artifactory/libs-release-local" }
+        maven { url "http://repository.jsweet.org/artifactory/plugins-release-local" }*/
     }
 
     dependencies {
@@ -18,6 +21,9 @@ allprojects {
     repositories {
         jcenter()
         google()
+        /*mavenCentral()
+        maven { url "http://repository.jsweet.org/artifactory/libs-release-local" }
+        maven { url "http://repository.jsweet.org/artifactory/plugins-release-local" }*/
     }
 }
 

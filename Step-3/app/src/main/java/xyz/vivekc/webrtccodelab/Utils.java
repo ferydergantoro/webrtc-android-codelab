@@ -2,6 +2,7 @@ package xyz.vivekc.webrtccodelab;
 
 import com.google.gson.GsonBuilder;
 
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import okhttp3.OkHttpClient;
@@ -49,5 +50,17 @@ public class Utils {
                     .build();
         }
         return retrofitInstance.create(TurnServer.class);
+    }
+
+    public static String getRandomSaltString() {
+        String SALTCHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
+        StringBuilder salt = new StringBuilder();
+        Random rnd = new Random();
+        while (salt.length() < 5) { // length of the random string.
+            int index = (int) (rnd.nextFloat() * SALTCHARS.length());
+            salt.append(SALTCHARS.charAt(index));
+        }
+        String saltStr = salt.toString();
+        return saltStr;
     }
 }

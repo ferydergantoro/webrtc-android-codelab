@@ -25,25 +25,34 @@ android {
 }
 
 dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+
+    implementation 'org.mozilla:rhino:1.7.12'
+    implementation 'io.apisense:rhino-android:1.1.1'
+    //implementation 'com.sun.phobos:jsr223-api:1.0'
 
     implementation 'org.webrtc:google-webrtc:1.0.30039'
-    //CR 21770
-    androidTestImplementation('com.android.support.test.espresso:espresso-core:3.0.2', {
-        exclude group: 'com.android.support', module: 'support-annotations'
-    })
-    implementation 'com.android.support:appcompat-v7:28.0.0'
-    testImplementation 'junit:junit:4.13'
+
     //implementation('io.socket:socket.io-client:1.0.0') {
     //noinspection GradleDependency
     implementation('io.socket:socket.io-client:0.8.3') {
         // excluding org.json which is provided by Android
         exclude group: 'org.json', module: 'json'
     }
+
+    //noinspection AnnotationProcessorOnCompilePath
+    compileOnly 'org.projectlombok:lombok:1.18.12'
+    annotationProcessor 'org.projectlombok:lombok:1.18.12'
+
     implementation 'com.squareup.retrofit2:retrofit:2.8.1'
     implementation 'com.squareup.retrofit2:converter-gson:2.8.1'
 
+    androidTestImplementation('com.android.support.test.espresso:espresso-core:3.0.2', {
+        exclude group: 'com.android.support', module: 'support-annotations'
+    })
     implementation 'com.android.support:appcompat-v7:28.0.0'
     implementation 'com.android.support:design:28.0.0'
+    testImplementation 'junit:junit:4.13'
 }
 
 repositories {

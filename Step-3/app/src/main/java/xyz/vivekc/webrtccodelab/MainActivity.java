@@ -2,6 +2,7 @@ package xyz.vivekc.webrtccodelab;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -9,16 +10,19 @@ import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.RecyclerView;
 import android.util.Base64;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
@@ -106,6 +110,24 @@ public class MainActivity extends AppCompatActivity implements
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+//        try {
+//            ScriptEngineManager scriptEngineManager = new ScriptEngineManager();
+//            //ScriptEngine scriptEngine = scriptEngineManager.getEngineByName("Nashorn");
+//            ScriptEngine scriptEngine = scriptEngineManager.getEngineByName("rhino");
+//            scriptEngine.eval(Reader.readRawString(getResources(), R.raw.rtc_multi_connection));
+//            Invocable invocable = (Invocable)scriptEngine;
+//            Object objConnection = (Object) invocable.invokeFunction("getRTCMultiConnection");
+//            Log.d(TAG, "onCreate: object connection => " + objConnection);
+//        } catch (ScriptException e) {
+//            e.printStackTrace();
+//        } catch (NoSuchMethodException e) {
+//            e.printStackTrace();
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+
+        //Log.d(TAG, "onCreate: " + Tools.runScript(this));
+
         customProgress = CustomProgress.getInstance(this, new CustomProgress.ActionProgress() {
             @Override
             public void actionCancel() {
@@ -148,6 +170,7 @@ public class MainActivity extends AppCompatActivity implements
 
         initViews();
         initVideos();
+        getMyIceServers();
         //getIceServers();
     }
 
@@ -205,6 +228,31 @@ public class MainActivity extends AppCompatActivity implements
         //remoteVideoView2.setMirror(true);
     }
 
+    private void getMyIceServers() {
+        iceServers = new ArrayList<IceServer>();
+        /*IceServer myIceServer =  new IceServer();
+        myIceServer.setUrl("stun:stun.l.google.com:19302");
+        iceServers.add(myIceServer);*/
+        IceServer myIceServer2 =  new IceServer();
+        myIceServer2.setUrl("turn:202.51.110.214:8282");
+        myIceServer2.setUsername("eluon");
+        myIceServer2.setCredential("eluon123");
+        iceServers.add(myIceServer2);
+        for (IceServer iceServer : iceServers) {
+            if (iceServer.credential == null) {
+                PeerConnection.IceServer peerIceServer = PeerConnection.IceServer.builder(iceServer.url).createIceServer();
+                peerIceServers.add(peerIceServer);
+            } else {
+                PeerConnection.IceServer peerIceServer = PeerConnection.IceServer.builder(iceServer.url)
+                    .setUsername(iceServer.username)
+                    .setPassword(iceServer.credential)
+                    .createIceServer();
+                peerIceServers.add(peerIceServer);
+            }
+        }
+        Log.d("getMyIceServers", "IceServers\n" + iceServers.toString());
+    }
+
     private void getIceServers() {
         //get Ice servers using xirsys
         byte[] data = new byte[0];
@@ -257,6 +305,10 @@ public class MainActivity extends AppCompatActivity implements
     }
 
     public void start() {
+      showFormData();
+    }
+
+    public void start(String roomName) {
         onStartProgress();
 
         // keep screen on
@@ -264,7 +316,7 @@ public class MainActivity extends AppCompatActivity implements
 
         //doInit();
 
-        SignallingClient.getInstance().init(this);
+        SignallingClient.getInstance().init(roomName,this);
 
         //Initialize PeerConnectionFactory globals.
         PeerConnectionFactory.InitializationOptions initializationOptions =
@@ -334,6 +386,52 @@ public class MainActivity extends AppCompatActivity implements
         call();
     }
 
+    private void showFormData(){
+      // get prompts.xml view
+      LayoutInflater li = LayoutInflater.from(this);
+      View promptsView = li.inflate(R.layout.prompts, null);
+
+      AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(this);
+
+      // set prompts.xml to alertdialog builder
+      alertDialogBuilder.setView(promptsView);
+
+      final EditText userInput = (EditText) promptsView.findViewById(R.id.roomNameInput);
+      //userInput.setText(Utils.getRandomSaltString());
+        userInput.setText("eluon");
+
+      // set dialog message
+      alertDialogBuilder
+          .setCancelable(false)
+          .setPositiveButton("OK",
+              new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface dialog,int id) {
+                  // get user input and set it to result
+                  // edit text
+                  String roomName = userInput.getText().toString();
+                  if (roomName != null && !roomName.isEmpty()) {
+                    start(roomName);
+                  } else {
+                    showToast("Please input your room name.");
+                    hideProgress();
+                  }
+                }
+              })
+          .setNegativeButton("Cancel",
+              new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface dialog,int id) {
+                    hideProgress();
+                    dialog.cancel();
+                }
+              });
+
+      // create alert dialog
+      AlertDialog alertDialog = alertDialogBuilder.create();
+
+      // show it
+      alertDialog.show();
+    }
+
     private void onStartProgress() {
         start.setEnabled(false);
         call.setEnabled(false);
@@ -367,11 +465,11 @@ public class MainActivity extends AppCompatActivity implements
 
         gotUserMedia = true;
 
-        try {
-            Thread.sleep(TIME_MS_TO_DELAY_ON_EACH_STEP);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+//        try {
+//            Thread.sleep(TIME_MS_TO_DELAY_ON_EACH_STEP);
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
         // Try to call with start here
         if (SignallingClient.getInstance().isInitiator) {
             onTryToStart();
@@ -385,20 +483,22 @@ public class MainActivity extends AppCompatActivity implements
     @Override
     public void onTryToStart() {
         runOnUiThread(() -> {
-            if (!SignallingClient.getInstance().isStarted && localVideoTrack != null) {
+            if ((SignallingClient.getInstance().isInitiator || !SignallingClient.getInstance().isStarted) && localVideoTrack != null) {
                 if (SignallingClient.getInstance().isChannelReady) {
-                    //we already have video and audio tracks. Now create peerconnections
-                    try {
-                        Thread.sleep(TIME_MS_TO_DELAY_ON_EACH_STEP);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
+                    if (!SignallingClient.getInstance().isStarted) {
+                        //we already have video and audio tracks. Now create peerconnections
+    //                    try {
+    //                        Thread.sleep(TIME_MS_TO_DELAY_ON_EACH_STEP);
+    //                    } catch (InterruptedException e) {
+    //                        e.printStackTrace();
+    //                    }
+                        createPeerConnection();
                     }
-                    createPeerConnection();
-                    try {
-                        Thread.sleep(TIME_MS_TO_DELAY_ON_EACH_STEP);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
+//                    try {
+//                        Thread.sleep(TIME_MS_TO_DELAY_ON_EACH_STEP);
+//                    } catch (InterruptedException e) {
+//                        e.printStackTrace();
+//                    }
                     SignallingClient.getInstance().isStarted = true;
                     if (SignallingClient.getInstance().isInitiator) {
                         showProgress(false);
@@ -427,11 +527,11 @@ public class MainActivity extends AppCompatActivity implements
         // Use ECDSA encryption.
         rtcConfig.keyType = PeerConnection.KeyType.ECDSA;
 
-        try {
-            Thread.sleep(TIME_MS_TO_DELAY_ON_EACH_STEP);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+//        try {
+//            Thread.sleep(TIME_MS_TO_DELAY_ON_EACH_STEP);
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
         //creating localPeer
         localPeer = peerConnectionFactory.createPeerConnection(rtcConfig, new CustomPeerConnectionObserver("localPeerCreation") {
             @Override
@@ -451,6 +551,12 @@ public class MainActivity extends AppCompatActivity implements
             @Override
             public void onIceGatheringChange(PeerConnection.IceGatheringState iceGatheringState) {
                 super.onIceGatheringChange(iceGatheringState);
+            }
+
+            @Override
+            public void onIceConnectionChange(PeerConnection.IceConnectionState iceConnectionState) {
+              showToast("ICE State: " + iceConnectionState);
+              super.onIceConnectionChange(iceConnectionState);
             }
         });
 
@@ -476,8 +582,10 @@ public class MainActivity extends AppCompatActivity implements
             }
         });*/
 
-        //creating local mediastream
-        addStreamToLocalPeer();
+        if (localPeer != null) {
+            //creating local mediastream
+            addStreamToLocalPeer();
+        }
     }
 
     private void addQueueRemoteIceCandidate(IceCandidate iceCandidate) {
@@ -553,12 +661,12 @@ public class MainActivity extends AppCompatActivity implements
                 //if (setRemoteIceCandidate()) {
                     onCallSuccess();
                 //} else {
-                    //onCallFailed();
+                  //  onCallFailed();
                 //}
             }
         }, sdpConstraints);
 
-        //creatiZng Offer 2
+        //creating Offer 2
         /*
         localPeer2.createOffer(new CustomSdpObserver("localCreateOffer2") {
             @Override
@@ -611,6 +719,8 @@ public class MainActivity extends AppCompatActivity implements
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT
                 );
+                params.height = dpToPx(100);
+                params.width = dpToPx(100);
                 params.gravity = Gravity.TOP | Gravity.END;
                 localVideoView.setLayoutParams(params);
 
@@ -734,6 +844,13 @@ public class MainActivity extends AppCompatActivity implements
             if (remoteVisible) {
                 params.height = dpToPx(100);
                 params.width = dpToPx(100);
+
+                FrameLayout.LayoutParams newparams = new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                );
+                newparams.gravity = Gravity.TOP | Gravity.END;
+                localVideoView.setLayoutParams(newparams);
             } else {
                 params = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
             }
