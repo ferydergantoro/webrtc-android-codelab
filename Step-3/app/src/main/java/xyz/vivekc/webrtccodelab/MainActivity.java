@@ -42,6 +42,7 @@ import org.webrtc.MediaConstraints;
 import org.webrtc.MediaStream;
 import org.webrtc.PeerConnection;
 import org.webrtc.PeerConnectionFactory;
+import org.webrtc.RendererCommon;
 import org.webrtc.SessionDescription;
 import org.webrtc.SurfaceTextureHelper;
 import org.webrtc.SurfaceViewRenderer;
@@ -222,10 +223,12 @@ public class MainActivity extends AppCompatActivity implements
         //remoteVideoView2.setZOrderMediaOverlay(false);
         localVideoView.setEnableHardwareScaler(true);
         localVideoView.setMirror(true);
+        localVideoView.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL);
         remoteVideoView.setEnableHardwareScaler(true);
         //remoteVideoView2.setEnableHardwareScaler(true);
         remoteVideoView.setMirror(true);
         //remoteVideoView2.setMirror(true);
+        remoteVideoView.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL);
     }
 
     private void getMyIceServers() {
@@ -319,8 +322,10 @@ public class MainActivity extends AppCompatActivity implements
         SignallingClient.getInstance().init(roomName,this);
 
         //Initialize PeerConnectionFactory globals.
+        String fieldTrials = (PeerConnectionFactory.VIDEO_FRAME_EMIT_TRIAL + "/" + PeerConnectionFactory.TRIAL_ENABLED + "/");
         PeerConnectionFactory.InitializationOptions initializationOptions =
                 PeerConnectionFactory.InitializationOptions.builder(this)
+                        .setFieldTrials(fieldTrials)
                         .createInitializationOptions();
         PeerConnectionFactory.initialize(initializationOptions);
 
