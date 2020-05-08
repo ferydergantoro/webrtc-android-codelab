@@ -48,7 +48,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:scrollbars="vertical"
-                app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+                app:layout_behavior="@string/appbar_scrolling_view_behavior"
+                android:background="#F5F5F5"
+                tools:ignore="PrivateResource"
+                />
 
         </LinearLayout>
 
@@ -62,49 +65,63 @@
 
     </FrameLayout>
 
-    <LinearLayout
+    <android.support.v7.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:orientation="horizontal"
-        android:background="@android:color/white">
-        <Button
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:id="@+id/start_call"
-            android:layout_margin="5dp"
-            style="@android:style/Widget.Material.Button.Borderless.Colored"
-            android:text="Start Call"
-            tools:targetApi="lollipop"
-            tools:ignore="HardcodedText"
-            />
+        app:cardCornerRadius="0dp"
+        app:cardElevation="16dp"
+        app:cardMaxElevation="8dp"
+        app:contentPadding="0dp"
+        >
 
-        <Button
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:id="@+id/init_call"
-            style="@android:style/Widget.Material.Button.Borderless.Colored"
-            android:layout_margin="5dp"
-            android:layout_weight="1"
-            android:enabled="false"
-            android:text="Call"
-            android:visibility="gone"
-            tools:targetApi="lollipop"
-            tools:ignore="HardcodedText"
-            />
+            android:layout_gravity="center"
+            android:orientation="horizontal"
+            android:background="@android:color/white">
 
-      <Button
-          android:layout_width="wrap_content"
-          android:layout_margin="5dp"
-          style="@android:style/Widget.Material.Button.Borderless.Colored"
-          android:layout_height="wrap_content"
-          android:layout_weight="1"
-          android:id="@+id/end_call"
-          android:enabled="false"
-          android:text="Hangup"
-          tools:targetApi="lollipop"
-          tools:ignore="HardcodedText"
-          />
-    </LinearLayout>
+            <Button
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:id="@+id/start_call"
+                android:layout_margin="5dp"
+                style="@android:style/Widget.Material.Button.Borderless.Colored"
+                android:text="Start Call"
+                tools:targetApi="lollipop"
+                tools:ignore="HardcodedText"
+                />
+
+            <Button
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:id="@+id/init_call"
+                style="@android:style/Widget.Material.Button.Borderless.Colored"
+                android:layout_margin="5dp"
+                android:layout_weight="1"
+                android:enabled="false"
+                android:text="Call"
+                android:visibility="gone"
+                tools:targetApi="lollipop"
+                tools:ignore="HardcodedText"
+                />
+
+            <Button
+              android:layout_width="wrap_content"
+              android:layout_margin="5dp"
+              style="@android:style/Widget.Material.Button.Borderless.Colored"
+              android:layout_height="wrap_content"
+              android:layout_weight="1"
+              android:id="@+id/end_call"
+              android:enabled="false"
+              android:text="Hangup"
+              tools:targetApi="lollipop"
+              tools:ignore="HardcodedText"
+              />
+
+        </LinearLayout>
+
+    </android.support.v7.widget.CardView>
 </FrameLayout>

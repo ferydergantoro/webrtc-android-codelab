@@ -29,14 +29,19 @@ io.sockets.on('connection', function(socket) {
     socket.emit('log', array);
   }
 
-  socket.on('message', function(message, room) {
+  socket.on('message', function(message, room, client_id, from_client_id, peerkey) {
     log('Client said: ', message);
-    console.log('Client said: ' + message + ' in room: ' + room);
+    console.log('Client '+ client_id +' said: ' + message + ' in room: ' + room);
 
     // for a real app, would be room-only (not broadcast)
-    console.log('Echo to Client: ' + message + ' in room: ' + room);
+    console.log('Echo to all Client: ' + message + ' in room: ' + room + ' from client: ' + client_id);
     //io.to(room).emit('message', message, room);
-    socket.broadcast.emit('message', message);
+    //io.to(client_id).emit('message', message, room, client_id);
+    //socket.emit('message', message, room, client_id);
+
+    //socket.broadcast.emit('message', message, room, client_id);
+    //io.sockets.emit('message', message, room, client_id);
+    io.sockets.in(room).emit('message', message, room, client_id, from_client_id, peerkey);
   });
 
   socket.on('join', function(room, client_id){
@@ -44,8 +49,8 @@ io.sockets.on('connection', function(socket) {
     console.log('Received request to join room ' + room + ' with Client ID ' + client_id);
 
     var clientsInRoom = io.sockets.adapter.rooms[room];
-    var numClients = clientsInRoom ?Object.keys(clientsInRoom.sockets).length : 0;
-    //var numClients = io.sockets.sockets.length;
+    var numClients = clientsInRoom ? Object.keys(clientsInRoom.sockets).length : 0;
+
     log('Room ' + room + ' now has ' + numClients + ' client(s)');
     console.log('Room ' + room + ' now has ' + numClients + ' client(s)');
 
@@ -58,7 +63,7 @@ io.sockets.on('connection', function(socket) {
 
     var clientsInRoom = io.sockets.adapter.rooms[room];
     var numClients = clientsInRoom ?Object.keys(clientsInRoom.sockets).length : 0;
-    //var numClients = io.sockets.sockets.length;
+
     log('Room ' + room + ' now has ' + numClients + ' client(s)');
     console.log('Room ' + room + ' now has ' + numClients + ' client(s)');
 
@@ -66,7 +71,15 @@ io.sockets.on('connection', function(socket) {
       socket.join(room);
       log('Client ID ' + socket.id + ' created room ' + room);
       console.log('Client ID ' + socket.id + ' created room ' + room);
-      socket.emit('created', room, socket.id);
+      
+      var arraySockets = Object.keys(io.sockets.clients().sockets);
+      console.log('arraySockets: ' + arraySockets);
+
+      var clientsInRoom = io.sockets.adapter.rooms[room];
+      numClients = clientsInRoom ? Object.keys(clientsInRoom.sockets).length : 0;
+
+      socket.emit('created', room, socket.id, numClients, arraySockets);
+      //io.sockets.in(room).emit('created', room, socket.id, numClients, Object.keys(clientsInRoom.sockets));
 
       log('Room ' + room + ' now has 1 client');
       console.log('Room ' + room + ' now has 1 client');
@@ -79,13 +92,20 @@ io.sockets.on('connection', function(socket) {
     if (numClients <= 2) {
       log('Client ID ' + socket.id + ' joined room ' + room);
       console.log('Client ID ' + socket.id + ' joined room ' + room);
-      io.sockets.in(room).emit('join', room, socket.id);
+      var clientsInRoom = io.sockets.adapter.rooms[room];
+      var arraySockets = Object.keys(io.sockets.clients().sockets);
+      console.log('Clients are: ' + arraySockets);
+      io.sockets.in(room).emit('join', room, socket.id, arraySockets.length, arraySockets);
       socket.join(room);
-      socket.emit('joined', room, socket.id);
+
+      clientsInRoom = io.sockets.adapter.rooms[room];
+      arraySockets = Object.keys(io.sockets.clients().sockets);
+      numClients = clientsInRoom ? Object.keys(clientsInRoom.sockets).length : 0;
+      
+      socket.emit('joined', room, socket.id, numClients, arraySockets);
+      //io.sockets.in(room).emit('joined', room, socket.id, numClients, arraySockets);
       io.sockets.in(room).emit('ready');
 
-      var clientsInRoom = io.sockets.adapter.rooms[room];
-      numClients = clientsInRoom ?Object.keys(clientsInRoom.sockets).length : 0;
       log('Room ' + room + ' now has ' + numClients + ' client(s)');
       console.log('Room ' + room + ' now has ' + numClients + ' client(s)');
     } else { // max 3 clients
@@ -105,6 +125,27 @@ io.sockets.on('connection', function(socket) {
   });
 
   socket.on('bye', function(room, client_id) {
+    var message = 'bye';
     console.log('received bye from ClientID: ' + client_id + ', in room: ' + room);
+    console.log('Emit to all Client: ' + message + ' in room: ' + room + ' from client: ' + client_id);
+
+    var clientsInRoom = io.sockets.adapter.rooms[room];
+    var numClients = clientsInRoom ? Object.keys(clientsInRoom.sockets).length : 0;
+    var arraySockets = Object.keys(io.sockets.clients().sockets);
+    arraySockets = arraySockets.remove(client_id);
+
+    //socket.broadcast.emit('message', message, room, client_id);
+    io.sockets.in(room).emit('message', message, room, client_id, arraySockets.length, arraySockets);
   });
+
+  Array.prototype.remove = function() {
+    var what, a = arguments, L = a.length, ax;
+    while (L && this.length) {
+        what = a[--L];
+        while ((ax = this.indexOf(what)) !== -1) {
+            this.splice(ax, 1);
+        }
+    }
+    return this;
+  };
 });

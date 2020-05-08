@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:card_view="http://schemas.android.com/apk/res-auto"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -9,11 +9,12 @@
     <android.support.v7.widget.CardView
         android:id="@+id/cardView"
         android:layout_width="match_parent"
-        android:layout_height="150dp"
-        card_view:cardCornerRadius="0dp"
-        card_view:cardElevation="8dp"
-        card_view:cardMaxElevation="8dp"
-        card_view:contentPadding="8dp">
+        android:layout_height="260dp"
+        app:cardCornerRadius="10dp"
+        app:cardElevation="6dp"
+        app:cardMaxElevation="8dp"
+        app:contentPadding="0dp"
+        android:layout_margin="8dp">
 
 
         <RelativeLayout
@@ -23,25 +24,55 @@
             android:orientation="vertical"
             android:layout_gravity="center">
 
-            <ImageView
-                android:id="@+id/imageView"
-                android:layout_width="wrap_content"
+            <RelativeLayout
+                android:id="@+id/info_panel"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_centerInParent="true"
-                android:tint="@android:color/white"
-                android:padding="5dp"
-                tools:ignore="ContentDescription"
-                />
+                android:layout_margin="8dp"
+                >
+
+                <ImageView
+                    android:id="@+id/imageView"
+                    android:layout_width="25dp"
+                    android:layout_height="25dp"
+                    android:layout_gravity="left"
+                    android:layout_centerVertical="true"
+                    android:tint="@android:color/white"
+                    tools:ignore="ContentDescription,RtlHardcoded"
+                    />
 
 
-            <TextView
-                android:id="@+id/textView"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_centerHorizontal="true"
-                android:textColor="@android:color/white"
-                android:layout_below="@+id/imageView" />
+                <TextView
+                    android:id="@+id/textView"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="left"
+                    android:paddingLeft="4dp"
+                    android:layout_centerVertical="true"
+                    android:textColor="@android:color/white"
+                    android:layout_toRightOf="@id/imageView"
+                    tools:ignore="RtlHardcoded,RtlSymmetry"
+                    />
 
+            </RelativeLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:weightSum="1"
+                android:orientation="vertical"
+                android:layout_below="@id/info_panel"
+                tools:ignore="ObsoleteLayoutParam"
+                >
+
+                <org.webrtc.SurfaceViewRenderer
+                    android:id="@+id/remote_gl_surface_view"
+                    android:layout_width="match_parent"
+                    android:layout_weight="1"
+                    android:layout_height="0dp" />
+
+            </LinearLayout>
 
         </RelativeLayout>
 

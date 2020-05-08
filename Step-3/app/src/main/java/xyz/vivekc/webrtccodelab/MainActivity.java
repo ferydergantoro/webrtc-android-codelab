@@ -4,6 +4,7 @@ import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
+import android.graphics.Point;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -16,6 +17,7 @@ import android.support.v7.widget.RecyclerView;
 import android.util.Base64;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.Display;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -42,7 +44,6 @@ import org.webrtc.MediaConstraints;
 import org.webrtc.MediaStream;
 import org.webrtc.PeerConnection;
 import org.webrtc.PeerConnectionFactory;
-import org.webrtc.RendererCommon;
 import org.webrtc.SessionDescription;
 import org.webrtc.SurfaceTextureHelper;
 import org.webrtc.SurfaceViewRenderer;
@@ -53,14 +54,12 @@ import org.webrtc.VideoTrack;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Date;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
+import java.util.Random;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -72,7 +71,6 @@ public class MainActivity extends AppCompatActivity implements
     SignallingClient.SignalingInterface,
     RecyclerViewAdapter.ItemListener
 {
-    private final static long TIME_MS_TO_DELAY_ON_EACH_STEP = 100L;
     PeerConnectionFactory peerConnectionFactory;
     MediaConstraints audioConstraints;
     MediaConstraints videoConstraints;
@@ -84,17 +82,15 @@ public class MainActivity extends AppCompatActivity implements
     SurfaceTextureHelper surfaceTextureHelper;
 
     SurfaceViewRenderer localVideoView;
-    SurfaceViewRenderer remoteVideoView;
+    //SurfaceViewRenderer remoteVideoView;
     //SurfaceViewRenderer remoteVideoView2;
 
     Button start, call, hangup;
-    PeerConnection localPeer;
-    //PeerConnection localPeer2;
     List<IceServer> iceServers;
-    HashMap<String, IceCandidate> remoteIceJSONCandidates;
     EglBase rootEglBase;
 
     boolean gotUserMedia;
+    boolean isNegotiatingConn1, isNegotiatingConn2;
     List<PeerConnection.IceServer> peerIceServers = new ArrayList<>();
 
     final int ALL_PERMISSIONS_CODE = 1;
@@ -105,6 +101,9 @@ public class MainActivity extends AppCompatActivity implements
 
     RecyclerView recyclerView;
     ArrayList<DataModel> arrayList;
+    RecyclerViewAdapter adapter;
+
+    HashMap<String, ClientPeerConnection> peerConnectionList = new HashMap<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -145,23 +144,24 @@ public class MainActivity extends AppCompatActivity implements
 
         recyclerView = (RecyclerView) findViewById(R.id.recyclerView);
         arrayList = new ArrayList<>();
+        /*
         arrayList.add(new DataModel("Item 1", R.drawable.battle, "#09A9FF"));
         arrayList.add(new DataModel("Item 2", R.drawable.beer, "#3E51B1"));
         arrayList.add(new DataModel("Item 3", R.drawable.ferrari, "#673BB7"));
         arrayList.add(new DataModel("Item 4", R.drawable.jetpack_joyride, "#4BAA50"));
         arrayList.add(new DataModel("Item 5", R.drawable.three_d, "#F94336"));
         arrayList.add(new DataModel("Item 6", R.drawable.terraria, "#0A9B88"));
+        */
 
-        RecyclerViewAdapter adapter = new RecyclerViewAdapter(this, arrayList, this);
+        adapter = new RecyclerViewAdapter(this, arrayList, this);
         recyclerView.setAdapter(adapter);
 
         /**
          AutoFitGridLayoutManager that auto fits the cells by the column width defined.
          **/
 
-        AutoFitGridLayoutManager layoutManager = new AutoFitGridLayoutManager(this, 500);
+        AutoFitGridLayoutManager layoutManager = new AutoFitGridLayoutManager(this, getMaxWidth());
         recyclerView.setLayoutManager(layoutManager);
-
 
         /**
          Simple GridLayoutManager that spans two columns
@@ -173,6 +173,99 @@ public class MainActivity extends AppCompatActivity implements
         initVideos();
         getMyIceServers();
         //getIceServers();
+    }
+
+    private DataModel getTheDataModel(String client_id, String peerKey, int index) {
+        if (index <= 0) {
+            index = 1;
+        }
+        String colors[] = new String[] {
+            "#09A9FF",
+            "#3E51B1",
+            "#673BB7",
+            "#4BAA50",
+            "#F94336",
+            "#0A9B88",
+        };
+        int images[] = new int[] {
+            R.drawable.battle,
+            R.drawable.beer,
+            R.drawable.ferrari,
+            R.drawable.jetpack_joyride,
+            R.drawable.three_d,
+            R.drawable.terraria,
+        } ;
+        return new DataModel(images[new Random().nextInt(images.length)], colors[(index % colors.length) - 1], peerKey, client_id);
+    }
+
+    private int findIndexDataModeItemList(DataModel dataModel) {
+        for (int idx = 0; idx < arrayList.size(); idx++) {
+            DataModel dm = arrayList.get(idx);
+            if (dataModel.remoteClientId.equals(dm.remoteClientId) && dataModel.peerKey.equals(dm.peerKey)) {
+                return idx;
+            }
+        }
+        return -1;
+    }
+
+    private void removeAllDataModelList() {
+        if (arrayList == null) {
+            arrayList = new ArrayList<>();
+            return;
+        }
+        Log.d(TAG, "removeAllDataModelList: remove all datamodel");
+        arrayList.clear();
+        adapter.notifyDataSetChanged();
+        Log.d(TAG, "removeAllDataModelList: count datamodel list now is " + arrayList.size());
+    }
+
+    private void removeDataModelList(DataModel dataModel) {
+        if (arrayList == null) {
+            arrayList = new ArrayList<>();
+            return;
+        }
+        int idxDm = findIndexDataModeItemList(dataModel);
+        if (idxDm > -1 && idxDm < arrayList.size()) {
+            Log.d(TAG, "removeDataModelList: count datamodel list before remove " + arrayList.size());
+            arrayList.remove(idxDm);
+            adapter.notifyItemRemoved(idxDm);
+            Log.d(TAG, "removeDataModelList: remove index " + idxDm);
+        }
+    }
+
+    private void addOrUpdateDataModelList(DataModel dataModel) {
+        if (arrayList == null) {
+            arrayList = new ArrayList<>();
+        }
+        int idxDm = findIndexDataModeItemList(dataModel);
+        Log.d(TAG, "addOrUpdateDataModelList: count datamodel list before add or update is " + arrayList.size());
+        if (idxDm > -1 && idxDm < arrayList.size()) {
+            arrayList.set(idxDm, dataModel);
+            adapter.notifyItemChanged(idxDm);
+            Log.d(TAG, "addOrUpdateDataModelList: updated on index " + idxDm);
+        } else {
+            arrayList.add(dataModel);
+            idxDm = arrayList.size()-1;
+            adapter.notifyItemInserted(idxDm);
+            Log.d(TAG, "addOrUpdateDataModelList: add on index " + idxDm);
+        }
+        Log.d(TAG, "addOrUpdateDataModelList: count datamodel list now is " + arrayList.size());
+    }
+
+    private int getMaxWidth() {
+        Display display = getWindowManager().getDefaultDisplay();
+        Point m_size = new Point();
+        display.getSize(m_size);
+        int m_width = m_size.x;
+
+        display = getWindowManager().getDefaultDisplay();
+        m_width = Math.max(m_width, display.getWidth());
+
+        DisplayMetrics metrics = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(metrics);
+        m_width = Math.max(m_width, metrics.widthPixels);
+
+        return m_width;
     }
 
     private void checkPermissionToStart() {
@@ -205,7 +298,7 @@ public class MainActivity extends AppCompatActivity implements
         call = (Button) findViewById(R.id.init_call);
         hangup = findViewById(R.id.end_call);
         localVideoView = findViewById(R.id.local_gl_surface_view);
-        remoteVideoView = findViewById(R.id.remote_gl_surface_view);
+        //remoteVideoView = findViewById(R.id.remote_gl_surface_view);
         //remoteVideoView2 = findViewById(R.id.remote_gl_surface_view2);
 
         start.setOnClickListener(this);
@@ -216,19 +309,25 @@ public class MainActivity extends AppCompatActivity implements
     private void initVideos() {
         rootEglBase = EglBase.create();
         localVideoView.init(rootEglBase.getEglBaseContext(), null);
-        remoteVideoView.init(rootEglBase.getEglBaseContext(), null);
+        //remoteVideoView.init(rootEglBase.getEglBaseContext(), null);
         //remoteVideoView2.init(rootEglBase.getEglBaseContext(), null);
+
         localVideoView.setZOrderMediaOverlay(true);
-        remoteVideoView.setZOrderMediaOverlay(false);
+        //remoteVideoView.setZOrderMediaOverlay(false);
         //remoteVideoView2.setZOrderMediaOverlay(false);
+
         localVideoView.setEnableHardwareScaler(true);
         localVideoView.setMirror(true);
-        localVideoView.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL);
-        remoteVideoView.setEnableHardwareScaler(true);
+        //localVideoView.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL);
+
+        //remoteVideoView.setEnableHardwareScaler(true);
         //remoteVideoView2.setEnableHardwareScaler(true);
-        remoteVideoView.setMirror(true);
+
+        //remoteVideoView.setMirror(true);
         //remoteVideoView2.setMirror(true);
-        remoteVideoView.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL);
+
+        //remoteVideoView.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL);
+        //remoteVideoView2.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL);
     }
 
     private void getMyIceServers() {
@@ -376,7 +475,7 @@ public class MainActivity extends AppCompatActivity implements
         localVideoTrack.setEnabled(true);
 
         localVideoView.setMirror(true);
-        remoteVideoView.setMirror(true);
+        //remoteVideoView.setMirror(true);
         //remoteVideoView2.setMirror(true);
 
         gotUserMedia = true;
@@ -454,13 +553,15 @@ public class MainActivity extends AppCompatActivity implements
         });
     }
 
-    private void onCallFailed() {
+    private void onCallFailed(String client_id) {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 showToast("Ups sorry.. something wrong happened, Please try again..");
                 hideProgress();
-                hangup();
+                if (client_id.equals(SignallingClient.getInstance().clientID)) {
+                    hangup();
+                }
             }
         });
     }
@@ -470,14 +571,9 @@ public class MainActivity extends AppCompatActivity implements
 
         gotUserMedia = true;
 
-//        try {
-//            Thread.sleep(TIME_MS_TO_DELAY_ON_EACH_STEP);
-//        } catch (InterruptedException e) {
-//            e.printStackTrace();
-//        }
         // Try to call with start here
         if (SignallingClient.getInstance().isInitiator) {
-            onTryToStart();
+            onTryToStart(SignallingClient.getInstance().clientID);
         }
     }
 
@@ -486,30 +582,61 @@ public class MainActivity extends AppCompatActivity implements
      * or when the remote peer sends a message through socket that it is ready to transmit AV data
      */
     @Override
-    public void onTryToStart() {
+    public void onTryToStart(String client_id) {
         runOnUiThread(() -> {
-            if ((SignallingClient.getInstance().isInitiator || !SignallingClient.getInstance().isStarted) && localVideoTrack != null) {
-                if (SignallingClient.getInstance().isChannelReady) {
-                    if (!SignallingClient.getInstance().isStarted) {
-                        //we already have video and audio tracks. Now create peerconnections
-    //                    try {
-    //                        Thread.sleep(TIME_MS_TO_DELAY_ON_EACH_STEP);
-    //                    } catch (InterruptedException e) {
-    //                        e.printStackTrace();
-    //                    }
-                        createPeerConnection();
+            if (client_id != null) {
+                if (!client_id.equals(SignallingClient.getInstance().clientID)){
+                    Log.d(TAG,"onTryToStart: other client_id " + client_id);
+                } else{
+                    Log.d(TAG,"onTryToStart: my client_id " + SignallingClient.getInstance().clientID);
+                }
+            } else {
+                Log.d(TAG,"onTryToStart: null client_id");
+            }
+            Log.d(TAG, "onTryToStart: " + SignallingClient.getInstance().isInitiator + " " +
+                SignallingClient.getInstance().isStarted + " " + client_id + " " + SignallingClient.getInstance().clientID + " " +
+                localVideoTrack
+            );
+            if ((SignallingClient.getInstance().isInitiator || !SignallingClient.getInstance().isStarted ||
+                (client_id != null && SignallingClient.getInstance().clientID != null && !client_id.equals(SignallingClient.getInstance().clientID))
+                ) && localVideoTrack != null
+            ) {
+                Log.d(TAG, "onTryToStart: isChannelReady: " + SignallingClient.getInstance().isChannelReady);
+                if (SignallingClient.getInstance().isChannelReady &&
+                    SignallingClient.getInstance().clientID != null &&
+                    !SignallingClient.getInstance().clientID.isEmpty())
+                {
+                    ClientPeerConnection cpc = null;
+                    String peerkey = null;
+                    if (!SignallingClient.getInstance().isStarted || !SignallingClient.getInstance().clientID.equals(client_id)) {
+                        if (!SignallingClient.getInstance().isStarted) {
+                            //we already have video and audio tracks. Now create peerconnections
+                            cpc = createPeerConnection(SignallingClient.getInstance().clientID);
+                        } else if (!SignallingClient.getInstance().clientID.equals(client_id)) {
+                            peerkey = client_id + "-" + SignallingClient.getInstance().clientID;
+                            peerConnectionList.remove(null);
+                            cpc = peerConnectionList.get(peerkey);
+                            if (cpc == null) {
+                                cpc = createPeerConnection(client_id);
+                            }
+                        }
                     }
-//                    try {
-//                        Thread.sleep(TIME_MS_TO_DELAY_ON_EACH_STEP);
-//                    } catch (InterruptedException e) {
-//                        e.printStackTrace();
-//                    }
-                    SignallingClient.getInstance().isStarted = true;
-                    if (SignallingClient.getInstance().isInitiator) {
-                        showProgress(false);
-                        doCall();
+                    if (cpc != null && client_id != null) {
+                        SignallingClient.getInstance().isStarted = true;
+                        cpc.setPeerStarted(true);
+                        int sizeConn = getRealSizePeerConnectionList();
+                        Log.d(TAG, "onTryToStart: isInitiator: " + SignallingClient.getInstance().isInitiator);
+                        if ((peerkey != null && peerConnectionList.get(peerkey) != null && sizeConn > 2) ||
+                            (SignallingClient.getInstance().isInitiator &&
+                            (SignallingClient.getInstance().clientID != null && !client_id.equals(SignallingClient.getInstance().clientID)))
+                        ) {
+                            showProgress("Try Call client " + client_id, false);
+                            Log.d(TAG, "onTryToStart: do call " + client_id);
+                            doCall(cpc.getPeerConnection(), client_id, peerkey);
+                        }
                     }
                 } else {
+                    Log.d(TAG, "onTryToStart: send join request");
                     showProgress(false);
                     SignallingClient.getInstance().emitJoin();
                 }
@@ -517,104 +644,153 @@ public class MainActivity extends AppCompatActivity implements
         });
     }
 
+    private int getRealSizePeerConnectionList() {
+        int sizeConn = 0;
+        for (Map.Entry<String, ClientPeerConnection> mapEntryPc  : peerConnectionList.entrySet()) {
+            if (mapEntryPc.getKey() != null && mapEntryPc.getValue() != null) {
+                sizeConn++;
+            }
+        }
+        return sizeConn;
+    }
+
     /**
      * Creating the local peerconnection instance
      */
-    private void createPeerConnection() {
+    private ClientPeerConnection createPeerConnection(String client_id) {
         PeerConnection.RTCConfiguration rtcConfig =
                 new PeerConnection.RTCConfiguration(peerIceServers);
         // TCP candidates are only useful when connecting to a server that supports
         // ICE-TCP.
-        rtcConfig.tcpCandidatePolicy = PeerConnection.TcpCandidatePolicy.DISABLED;
+        //rtcConfig.tcpCandidatePolicy = PeerConnection.TcpCandidatePolicy.DISABLED;
+        rtcConfig.tcpCandidatePolicy = PeerConnection.TcpCandidatePolicy.ENABLED;
         rtcConfig.bundlePolicy = PeerConnection.BundlePolicy.MAXBUNDLE;
         rtcConfig.rtcpMuxPolicy = PeerConnection.RtcpMuxPolicy.REQUIRE;
         rtcConfig.continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY;
         // Use ECDSA encryption.
         rtcConfig.keyType = PeerConnection.KeyType.ECDSA;
 
-//        try {
-//            Thread.sleep(TIME_MS_TO_DELAY_ON_EACH_STEP);
-//        } catch (InterruptedException e) {
-//            e.printStackTrace();
-//        }
-        //creating localPeer
-        localPeer = peerConnectionFactory.createPeerConnection(rtcConfig, new CustomPeerConnectionObserver("localPeerCreation") {
+        ClientPeerConnection cpc = null;
+        boolean isNew = false;
+
+        int sizeConn = getRealSizePeerConnectionList();
+        PeerConnection localPeer = null;
+
+        int index = 1; // init first
+
+        if (sizeConn == 0) {
+            isNew = true;
+            String peerKey = null;
+            if (!SignallingClient.getInstance().clientID.equals(client_id) || sizeConn == 1) {
+                if (!SignallingClient.getInstance().clientID.equals(client_id)) {
+                    peerKey = client_id + "-" + SignallingClient.getInstance().clientID;
+                }
+                if (sizeConn == 1){
+                    peerKey = peerConnectionList.keySet().iterator().next();
+                }
+            }
+
+            localPeer = createPeerConnection(rtcConfig, index, peerKey, client_id, true);
+
+            Log.d(TAG, "createPeerConnection: fill peer1 conn in key " + SignallingClient.getInstance().clientID);
+            peerConnectionList.put(SignallingClient.getInstance().clientID, new ClientPeerConnection(
+                SignallingClient.getInstance().clientID, client_id, localPeer, getTheDataModel(client_id, SignallingClient.getInstance().clientID, index)));
+            cpc = peerConnectionList.get(SignallingClient.getInstance().clientID);
+
+            if (peerKey != null) {
+                Log.d(TAG, "createPeerConnection: fill peer1 conn in key " + peerKey);
+                peerConnectionList.put(peerKey, new ClientPeerConnection(peerKey, client_id, localPeer, getTheDataModel(client_id, peerKey, index)));
+                cpc = peerConnectionList.get(peerKey);
+            }
+        }
+
+        if (localPeer == null && peerConnectionList.get(SignallingClient.getInstance().clientID) != null && peerConnectionList.get(SignallingClient.getInstance().clientID).getPeerConnection() != null) {
+            localPeer = peerConnectionList.get(SignallingClient.getInstance().clientID).getPeerConnection();
+        }
+
+        if (cpc == null && localPeer != null) {
+            String peerKey = client_id + "-" + SignallingClient.getInstance().clientID;
+            Log.d(TAG, "createPeerConnection: size peer connection list = " + sizeConn);
+            if (peerConnectionList.get(peerKey) != null) {
+                cpc = peerConnectionList.get(peerKey);
+            } else {
+                if (sizeConn == 1) {
+                    isNew = true;
+                    if (SignallingClient.getInstance().isInitiator) {
+                        Log.d(TAG, "createPeerConnection: fill peer-1 conn in key " + peerKey);
+                        DataModel dataModel = getTheDataModel(client_id, peerKey, index);
+                        if (localPeer.iceConnectionState() == PeerConnection.IceConnectionState.CLOSED) {
+                            localPeer = createPeerConnection(rtcConfig, index, peerKey, client_id, true);
+                            peerConnectionList.put(SignallingClient.getInstance().clientID, new ClientPeerConnection(
+                                SignallingClient.getInstance().clientID, client_id, localPeer, dataModel));
+                        } else {
+                            peerConnectionList.get(SignallingClient.getInstance().clientID).setDataModel(dataModel);
+                        }
+                        peerConnectionList.put(peerKey, new ClientPeerConnection(peerKey, client_id, localPeer, dataModel));
+                    } else {
+                        index = sizeConn+1;
+                        PeerConnection localPeerIdxN = createPeerConnection(rtcConfig, index, peerKey, client_id, false);
+                        Log.d(TAG, "createPeerConnection: fill peer-" + index + " conn in key " + peerKey);
+                        peerConnectionList.put(peerKey, new ClientPeerConnection(peerKey, client_id, localPeerIdxN, getTheDataModel(client_id, peerKey, index)));
+                    }
+                    cpc = peerConnectionList.get(peerKey);
+                } else if (sizeConn >= 2) {
+                    isNew = true;
+                    index = sizeConn+1;
+                    PeerConnection localPeerIdxN = createPeerConnection(rtcConfig, index, peerKey, client_id, false);
+                    Log.d(TAG, "createPeerConnection: fill peer-" + index + " conn in key " + peerKey);
+                    peerConnectionList.put(peerKey, new ClientPeerConnection(peerKey, client_id, localPeerIdxN, getTheDataModel(client_id, peerKey, index)));
+                    cpc = peerConnectionList.get(peerKey);
+                }
+            }
+        }
+
+        if (cpc != null || isNew) {
+            //creating local mediastream
+            addStreamToLocalPeer(cpc.getPeerConnection(), client_id);
+        }
+
+        return cpc;
+    }
+
+    private PeerConnection createPeerConnection(PeerConnection.RTCConfiguration rtcConfig, int index, String peerkey, String client_id, boolean isInitiator) {
+        //creating localPeer #n
+        return peerConnectionFactory.createPeerConnection(rtcConfig, new CustomPeerConnectionObserver("localPeerCreation"+index, index, client_id, peerkey == null ? client_id : peerkey, isInitiator) {
             @Override
             public void onIceCandidate(IceCandidate iceCandidate) {
                 super.onIceCandidate(iceCandidate);
                 //addQueueRemoteIceCandidate(iceCandidate);
-                onIceCandidateReceived(iceCandidate);
+                onIceCandidateReceived(iceCandidate, getRemoteClientId(), getPeerKey());
             }
 
             @Override
             public void onAddStream(MediaStream mediaStream) {
-                showToast("Received Remote stream");
+                showToast("Received Remote stream peer-"+getIndex());
+                Log.d(TAG, "onAddStream: Received Remote stream peer-" + getIndex() + " for client " + getRemoteClientId());
                 super.onAddStream(mediaStream);
-                gotRemoteStream(mediaStream);
-            }
-
-            @Override
-            public void onIceGatheringChange(PeerConnection.IceGatheringState iceGatheringState) {
-                super.onIceGatheringChange(iceGatheringState);
+                Log.d(TAG, "onAddStream: will get client peer connection with peerkey " + getPeerKey());
+                ClientPeerConnection cpc = peerConnectionList.get(getPeerKey());
+                Log.d(TAG, "onAddStream: get client peer connection " + cpc);
+                if (cpc != null) {
+                    Log.d(TAG, "onAddStream: get datamodel " + cpc.getDataModel());
+                    if (cpc.getDataModel() != null && cpc.getDataModel().remoteClientId != null && cpc.getDataModel().peerKey != null) {
+                        Log.d(TAG, "onAddStream: got client peer connection for client " + cpc.getDataModel().remoteClientId + " with peerkey " + cpc.getDataModel().peerKey);
+                        gotRemoteStream(mediaStream, cpc.getDataModel());
+                    }
+                }
             }
 
             @Override
             public void onIceConnectionChange(PeerConnection.IceConnectionState iceConnectionState) {
-              showToast("ICE State: " + iceConnectionState);
-              super.onIceConnectionChange(iceConnectionState);
+                showToast("ICE Peer-" + getIndex() + " State: " + iceConnectionState);
+                Log.d(TAG, "onIceConnectionChange: ICE Peer-" + getIndex() + " for client " + getRemoteClientId() + " with State: " + iceConnectionState);
+                ClientPeerConnection cpc = peerConnectionList.get(getPeerKey());
+                if (cpc != null) {
+                    cpc.setIceConnectionState(iceConnectionState);
+                }
+                super.onIceConnectionChange(iceConnectionState);
             }
         });
-
-        //creating localPeer2
-        /*localPeer2 = peerConnectionFactory.createPeerConnection(rtcConfig, new CustomPeerConnectionObserver("localPeerCreation2") {
-            @Override
-            public void onIceCandidate(IceCandidate iceCandidate) {
-                super.onIceCandidate(iceCandidate);
-                //addQueueRemoteIceCandidate(iceCandidate);
-                onIceCandidateReceived(iceCandidate);
-            }
-
-            @Override
-            public void onAddStream(MediaStream mediaStream) {
-                showToast("Received Remote stream");
-                super.onAddStream(mediaStream);
-                gotRemoteStream2(mediaStream);
-            }
-
-            @Override
-            public void onIceGatheringChange(PeerConnection.IceGatheringState iceGatheringState) {
-                super.onIceGatheringChange(iceGatheringState);
-            }
-        });*/
-
-        if (localPeer != null) {
-            //creating local mediastream
-            addStreamToLocalPeer();
-        }
-    }
-
-    private void addQueueRemoteIceCandidate(IceCandidate iceCandidate) {
-      if (remoteIceJSONCandidates == null) {
-        remoteIceJSONCandidates = new HashMap<>();
-      }
-      remoteIceJSONCandidates.put(String.valueOf(new Date().getTime()), iceCandidate);
-    }
-
-    private boolean setRemoteIceCandidate() {
-      if (remoteIceJSONCandidates != null && remoteIceJSONCandidates.size() > 0) {
-        TreeMap<String, IceCandidate> sorted = new TreeMap<>(remoteIceJSONCandidates);
-        Set<Map.Entry<String, IceCandidate>> mappings = sorted.entrySet();
-
-        Log.d(TAG, "Ice Candidates are : ");
-        for(Map.Entry<String, IceCandidate> mapping : mappings){
-          Log.d(TAG, mapping.getKey() + " ==> " + mapping.getValue());
-          IceCandidate iceCandidate = (IceCandidate) mapping.getValue();
-          onIceCandidateReceived(iceCandidate);
-        }
-        remoteIceJSONCandidates = new HashMap<>();
-        return true;
-      }
-      return false;
     }
 
     @SuppressLint("HardwareIds")
@@ -625,30 +801,22 @@ public class MainActivity extends AppCompatActivity implements
     /**
      * Adding the stream to the localpeer
      */
-    private void addStreamToLocalPeer() {
+    private void addStreamToLocalPeer(PeerConnection currPc, String client_id) {
         //creating local mediastream
         String labelMediaStream = generateLabelStream("102");
+        labelMediaStream += "-" + client_id;
         Log.d(TAG, "labelMediaStream: " + labelMediaStream);
         MediaStream stream = peerConnectionFactory.createLocalMediaStream(labelMediaStream);
         stream.addTrack(localAudioTrack);
         stream.addTrack(localVideoTrack);
-        localPeer.addStream(stream);
-
-        /*
-        labelMediaStream = generateLabelStream("103");
-        Log.d(TAG, "labelMediaStream2: " + labelMediaStream);
-        MediaStream stream2 = peerConnectionFactory.createLocalMediaStream(labelMediaStream);
-        stream2.addTrack(localAudioTrack);
-        stream2.addTrack(localVideoTrack);
-        localPeer2.addStream(stream2);
-        */
+        currPc.addStream(stream);
     }
 
     /**
      * This method is called when the app is the initiator - We generate the offer and send it over through socket
      * to remote peer
      */
-    private void doCall() {
+    private void doCall(PeerConnection currPc, String client_id, String peerkey) {
         sdpConstraints = new MediaConstraints();
         sdpConstraints.mandatory.add(
                 new MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"));
@@ -656,38 +824,26 @@ public class MainActivity extends AppCompatActivity implements
                 new MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"));
 
         //creating Offer
-        localPeer.createOffer(new CustomSdpObserver("localCreateOffer") {
+        currPc.createOffer(new CustomSdpObserver("localCreateOffer-"+client_id) {
             @Override
             public void onCreateSuccess(SessionDescription sessionDescription) {
                 super.onCreateSuccess(sessionDescription);
-                localPeer.setLocalDescription(new CustomSdpObserver("localSetLocalDesc"), sessionDescription);
-                Log.d("onCreateSuccess", "SignallingClient emit - creating offer from local peer");
-                SignallingClient.getInstance().emitMessage(sessionDescription);
-                //if (setRemoteIceCandidate()) {
-                    onCallSuccess();
-                //} else {
-                  //  onCallFailed();
-                //}
-            }
-        }, sdpConstraints);
-
-        //creating Offer 2
-        /*
-        localPeer2.createOffer(new CustomSdpObserver("localCreateOffer2") {
-            @Override
-            public void onCreateSuccess(SessionDescription sessionDescription) {
-                super.onCreateSuccess(sessionDescription);
-                localPeer2.setLocalDescription(new CustomSdpObserver("localSetLocalDesc2"), sessionDescription);
-                Log.d("onCreateSuccess2", "SignallingClient emit - creating offer from local peer");
-                SignallingClient.getInstance().emitMessage(sessionDescription);
-                //if (setRemoteIceCandidate()) {
+                Log.d(TAG, "onCreateSuccess: on create offer success and setLocalDescription " + client_id);
+                currPc.setLocalDescription(new CustomSdpObserver("localSetLocalDesc-"+client_id), sessionDescription);
+                Log.d("onCreateSuccess", "SignallingClient emit - creating offer from local peer-"+client_id);
+                SignallingClient.getInstance().emitMessage(sessionDescription, client_id, peerkey);
+                hideProgress();
                 onCallSuccess();
-                //} else {
-                //onCallFailed();
-                //}
+            }
+
+            @Override
+            public void onCreateFailure(String s) {
+                super.onCreateFailure(s);
+                Log.d(TAG, "onCreateFailure: s: " + s);
+                hideProgress();
+                onCallFailed(client_id);
             }
         }, sdpConstraints);
-        */
     }
 
     /*private void gotRemoteStream2(MediaStream stream) {
@@ -697,6 +853,15 @@ public class MainActivity extends AppCompatActivity implements
                 remoteVideoView2.setVisibility(View.VISIBLE);
                 videoTrack.setEnabled(true);
                 videoTrack.addSink(remoteVideoView2);
+                FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                );
+                params.height = dpToPx(100);
+                params.width = dpToPx(100);
+                params.gravity = Gravity.TOP | Gravity.END;
+                localVideoView.setLayoutParams(params);
+
                 hideProgress();
             } catch (Exception e) {
                 e.printStackTrace();
@@ -707,19 +872,22 @@ public class MainActivity extends AppCompatActivity implements
     /**
      * Received remote peer's media stream. we will get the first video track and render it
      */
-    private void gotRemoteStream(MediaStream stream) {
+    private void gotRemoteStream(MediaStream stream, DataModel dataModel) {
         //we have remote video stream. add to the renderer.
-        /*try {
-            Thread.sleep(TIME_MS_TO_DELAY_ON_EACH_STEP);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }*/
         final VideoTrack videoTrack = stream.videoTracks.get(0);
         runOnUiThread(() -> {
             try {
-                remoteVideoView.setVisibility(View.VISIBLE);
+                //remoteVideoView.setVisibility(View.VISIBLE);
                 videoTrack.setEnabled(true);
-                videoTrack.addSink(remoteVideoView);
+                //videoTrack.addSink(remoteVideoView);
+
+                Log.d(TAG, "gotRemoteStream: updating mediastream " + stream);
+                dataModel.mediaStream = stream;
+                Log.d(TAG, "gotRemoteStream: updating videotrack " + videoTrack);
+                dataModel.videoTrack = videoTrack;
+                Log.d(TAG, "gotRemoteStream: add or update datamodel");
+                addOrUpdateDataModelList(dataModel);
+
                 FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT
@@ -739,20 +907,45 @@ public class MainActivity extends AppCompatActivity implements
     /**
      * Received local ice candidate. Send it to remote peer through signalling for negotiation
      */
-    public void onIceCandidateReceived(IceCandidate iceCandidate) {
+    public void onIceCandidateReceived(IceCandidate iceCandidate, String client_id, String peerkey) {
         //we have received ice candidate. We can set it to the other peer.
-        SignallingClient.getInstance().emitIceCandidate(iceCandidate);
+        SignallingClient.getInstance().emitIceCandidate(iceCandidate, client_id, peerkey);
     }
 
     /**
      * SignallingCallback - called when the room is created - i.e. you are the initiator
      */
     @Override
-    public void onCreatedRoom() {
+    public void onCreatedRoom(String client_id, int numClients, ArrayList clients) {
         showToast("You created the room");
+        Log.d(TAG, "onCreatedRoom: clients => " + Arrays.toString(clients.toArray()));
+        String peerkey = SignallingClient.getInstance().clientID;
+        if (!peerConnectionList.containsKey(peerkey)) {
+            Log.d(TAG, "onCreatedRoom: create new peer key " + peerkey);
+            peerConnectionList.put(peerkey, null);
+        }
         Log.d(TAG, "onCreatedRoom: gotUserMedia = " + gotUserMedia);
         if (gotUserMedia) {
-            SignallingClient.getInstance().emitMessage("got user media");
+            SignallingClient.getInstance().emitMessage("got user media", SignallingClient.getInstance().clientID);
+        }
+        onCallSuccess();
+        hideProgress();
+    }
+
+    private void generateNewPossiblePeerKey(ArrayList clients) {
+        if (!peerConnectionList.containsKey(SignallingClient.getInstance().clientID)) {
+            Log.d(TAG, "generateNewPossiblePeerKey: create new peer key " + SignallingClient.getInstance().clientID);
+            peerConnectionList.put(SignallingClient.getInstance().clientID, null);
+        }
+        for (int i = 0; i < clients.toArray().length; i++) {
+            String cid_str = (String) clients.toArray()[i];
+            if (!SignallingClient.getInstance().clientID.equals(cid_str)) {
+                String peerkey = cid_str + "-" + SignallingClient.getInstance().clientID;
+                if (!peerConnectionList.containsKey(peerkey)) {
+                    Log.d(TAG, "generateNewPossiblePeerKey: create new peer key " + peerkey);
+                    peerConnectionList.put(peerkey, null);
+                }
+            }
         }
     }
 
@@ -760,58 +953,190 @@ public class MainActivity extends AppCompatActivity implements
      * SignallingCallback - called when you join the room - you are a participant
      */
     @Override
-    public void onJoinedRoom(String clientID) {
+    public void onJoinedRoom(String client_id, int numClients, ArrayList clients) {
         showToast("You joined the room");
+        Log.d(TAG, "onJoinedRoom: clients => " + Arrays.toString(clients.toArray()));
         Log.d(TAG, "onJoinedRoom: gotUserMedia = " + gotUserMedia);
         if (gotUserMedia) {
-            SignallingClient.getInstance().emitMessage("got user media");
+            SignallingClient.getInstance().emitMessage("got user media", client_id);
         }
+        Log.d(TAG, "onJoinedRoom: need generate new possibility peer key");
+        generateNewPossiblePeerKey(clients);
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                setTitle(getString(R.string.app_name));
+                getSupportActionBar().setSubtitle("ID " + client_id);
+            }
+        });
         onCallSuccess();
         hideProgress();
     }
 
     @Override
-    public void onNewPeerJoined(String clientID) {
+    public void onNewPeerJoined(String client_id, int numClients, ArrayList clients) {
         showToast("Remote Peer Joined");
+        Log.d(TAG, "onNewPeerJoined: Remote Peer Joined with client " + client_id);
+        Log.d(TAG, "onNewPeerJoined: clients => " + Arrays.toString(clients.toArray()));
+        Log.d(TAG, "onNewPeerJoined: need generate new possibility peer key");
+        generateNewPossiblePeerKey(clients);
+        if (!SignallingClient.getInstance().clientID.equals(client_id)) {
+            Log.d(TAG, "onNewPeerJoined: it is the other new client joined " + client_id);
+            String peerkey = client_id + "-" + SignallingClient.getInstance().clientID;
+            if (!peerConnectionList.containsKey(peerkey)) {
+                Log.d(TAG, "onNewPeerJoined: create new peer key " + peerkey);
+                peerConnectionList.put(peerkey, null);
+            }
+            Log.d(TAG, "TryToStart: " + client_id);
+            onTryToStart(client_id);
+        }
     }
 
     @Override
-    public void onRemoteHangUp(String msg) {
+    public void onRemoteHangUp(String msg, String client_id, int numClients, ArrayList clients) {
         showToast("Remote Peer hungup");
-        SignallingClient.getInstance().clientID = null;
-        runOnUiThread(this::hangup);
+        Log.d(TAG, "onRemoteHangUp: client " + client_id);
+        Log.d(TAG, "onRemoteHangUp: " + numClients + " client(s) still in room => " + clients);
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                String peerKey = client_id + "-" + SignallingClient.getInstance().clientID;
+                Log.d(TAG, "onRemoteHangUp: run: will remove peer conn with peerkey " + peerKey);
+                if (peerConnectionList.get(peerKey) != null) {
+                    if (peerConnectionList.get(peerKey).getDataModel() != null) {
+                        Log.d(TAG, "onRemoteHangUp: run: will hide remote video views with peerkey " + peerKey);
+                        removeDataModelList(peerConnectionList.get(peerKey).getDataModel());
+                    }
+                    if (peerConnectionList.get(peerKey).getPeerConnection() != null) {
+                        Log.d(TAG, "onRemoteHangUp: run: will close peer connection with peerkey " + peerKey);
+                        peerConnectionList.get(peerKey).getPeerConnection().close();
+                    }
+                }
+                Log.d(TAG, "onRemoteHangUp: run: recycle list view count now is " + arrayList.size());
+                peerConnectionList.remove(peerKey);
+                int sizeConn = getRealSizePeerConnectionList();
+                Log.d(TAG, "onRemoteHangUp: run: peer connection list count now is " + sizeConn);
+                if (sizeConn == 0 || (sizeConn == 1 && peerConnectionList.containsKey(SignallingClient.getInstance().clientID))) {
+                    Log.d(TAG,"onRemoteHangUp: run: not any remote view client saved, and local video view will be set full screen");
+                    removeAllDataModelList();
+                    updateVideoViews(false);
+                }
+            }
+        });
+        //TODO
+        //SignallingClient.getInstance().clientID = null;
+        //runOnUiThread(this::hangup);
+    }
+
+    private PeerConnection getPeerConnection(String client_id, String from_client_id, String peerKey) {
+        ClientPeerConnection cpc = getClientPeerConnection(client_id, from_client_id, peerKey);
+        return (cpc != null) ? cpc.getPeerConnection() : null;
+    }
+
+    private ClientPeerConnection getClientPeerConnection(String client_id, String from_client_id, String reffPeerKey) {
+        Log.d(TAG, "getClientPeerConnection: for client " + client_id);
+        Log.d(TAG, "getClientPeerConnection: from client " + from_client_id);
+        Log.d(TAG, "getClientPeerConnection: reffPeerKey " + reffPeerKey);
+        String peerKey = from_client_id + "-" + client_id;
+        ClientPeerConnection cPc = peerConnectionList.get(peerKey);
+        if (cPc == null && client_id.equals(from_client_id) && !client_id.equals(SignallingClient.getInstance().clientID)) {
+            peerKey = client_id + "-" + SignallingClient.getInstance().clientID;
+            Log.d(TAG, "getClientPeerConnection: 1st try for key " + peerKey);
+            cPc = peerConnectionList.get(peerKey);
+        }
+        if (cPc == null && client_id.equals(from_client_id) && client_id.equals(SignallingClient.getInstance().clientID)) {
+            Iterator<Map.Entry<String, ClientPeerConnection>> iteratorPcList = peerConnectionList.entrySet().iterator();
+            int count_found=0;
+            while (iteratorPcList.hasNext()){
+                Map.Entry<String, ClientPeerConnection> mapEntryPc = iteratorPcList.next();
+                String keyPc = mapEntryPc.getKey();
+                ClientPeerConnection valCpc = mapEntryPc.getValue();
+                if (keyPc != null && (keyPc.endsWith("-"+SignallingClient.getInstance().clientID) || (keyPc.equals(reffPeerKey) && reffPeerKey.endsWith("-"+SignallingClient.getInstance().clientID)))) {
+                    Log.d(TAG, "getClientPeerConnection: 2nd try decision key " + keyPc);
+                    peerKey = keyPc;
+                    cPc = valCpc;
+                }
+                count_found++;
+                if (count_found == 2) {
+                    break;
+                }
+            }
+        }
+        int sizeConn = getRealSizePeerConnectionList();
+        if (cPc == null && !client_id.equals(from_client_id) && client_id.equals(SignallingClient.getInstance().clientID) && sizeConn == 1) {
+            cPc = peerConnectionList.get(SignallingClient.getInstance().clientID);
+            peerKey = from_client_id + "-" + SignallingClient.getInstance().clientID;
+            Log.d(TAG, "getClientPeerConnection: 3rd try for key " + peerKey);
+            Log.d(TAG, "getClientPeerConnection: fill peer-1 conn in key " + peerKey);
+            cPc.getDataModel().setRemoteClientId(from_client_id);
+            cPc.getDataModel().peerKey = peerKey;
+            cPc.setPeerKey(peerKey);
+            peerConnectionList.put(SignallingClient.getInstance().clientID, cPc);
+            peerConnectionList.put(peerKey, cPc);
+        }
+        if (cPc == null && sizeConn == 1) {
+            cPc = peerConnectionList.get(SignallingClient.getInstance().clientID);
+            peerKey = from_client_id + "-" + SignallingClient.getInstance().clientID;
+            Log.d(TAG, "getClientPeerConnection: fill peer-1 conn in key " + peerKey);
+            peerConnectionList.put(peerKey, cPc);
+            Log.d(TAG, "getClientPeerConnection: final decision key with my client id " + SignallingClient.getInstance().clientID);
+            peerKey = SignallingClient.getInstance().clientID;
+        }
+        Log.d(TAG, "getClientPeerConnection: get peer connection with key " + peerKey);
+        Log.d(TAG, "getClientPeerConnection: client peer connection is " + cPc);
+        return cPc;
     }
 
     /**
      * SignallingCallback - Called when remote peer sends offer
      */
     @Override
-    public void onOfferReceived(final JSONObject data) {
+    public void onOfferReceived(final JSONObject data, final String client_id, String from_client_id, String peerKey) {
         showToast("Received Offer");
+        Log.d(TAG, "onOfferReceived: Received Offer (from " + from_client_id + ") for " + client_id);
+        Log.d(TAG, "onOfferReceived: Received Offer peerKey " + peerKey);
         runOnUiThread(() -> {
-            if (!SignallingClient.getInstance().isInitiator && !SignallingClient.getInstance().isStarted) {
-                onTryToStart();
+            if (!SignallingClient.getInstance().isInitiator && !SignallingClient.getInstance().isStarted
+            ) {
+                Log.d(TAG, "onOfferReceived: TryToStart client " + client_id + " from " + from_client_id + " with peerkey " + peerKey);
+                onTryToStart(client_id);
             }
 
             try {
-                localPeer.setRemoteDescription(new CustomSdpObserver("localSetRemote"), new SessionDescription(SessionDescription.Type.OFFER, data.getString("sdp")));
-                doAnswer();
-                updateVideoViews(true);
+                ClientPeerConnection cpc = getClientPeerConnection(client_id, from_client_id, peerKey);
+                if (cpc != null && cpc.getPeerConnection() != null) {
+                    Log.d(TAG, "onOfferReceived: setRemoteDescription " + client_id);
+                    cpc.getPeerConnection().setRemoteDescription(new CustomSdpObserver("localSetRemote-"+client_id), new SessionDescription(SessionDescription.Type.OFFER, data.getString("sdp")));
+                    doAnswer(cpc.getPeerConnection(), client_id, cpc.getPeerKey());
+                    updateVideoViews(true);
+                } else {
+                    String pk = from_client_id + "-" + client_id;
+                    if (peerConnectionList.containsKey(pk)) {
+                        Log.d(TAG, "onOfferReceived: contain key with peerkey " + pk);
+                        Log.d(TAG, "onOfferReceived: TryToStart client " + client_id + " from " + from_client_id + " with peerkey " + pk);
+                        onTryToStart(from_client_id);
+                    }
+                }
             } catch (JSONException e) {
                 e.printStackTrace();
             }
         });
     }
 
-    private void doAnswer() {
-        localPeer.createAnswer(new CustomSdpObserver("localCreateAns") {
-            @Override
-            public void onCreateSuccess(SessionDescription sessionDescription) {
-                super.onCreateSuccess(sessionDescription);
-                localPeer.setLocalDescription(new CustomSdpObserver("localSetLocal"), sessionDescription);
-                SignallingClient.getInstance().emitMessage(sessionDescription);
-            }
-        }, new MediaConstraints());
+    private void doAnswer(PeerConnection currPc, String client_id, String peerkey) {
+        if (currPc != null) {
+            Log.d(TAG, "doAnswer: client " + client_id);
+            currPc.createAnswer(new CustomSdpObserver("localCreateAns-"+client_id) {
+                @Override
+                public void onCreateSuccess(SessionDescription sessionDescription) {
+                    super.onCreateSuccess(sessionDescription);
+                    Log.d(TAG, "onCreateSuccess: on create answer success and setLocalDescription " + client_id);
+                    currPc.setLocalDescription(new CustomSdpObserver("localSetLocal-"+client_id), sessionDescription);
+                    Log.d("onCreateSuccess", "SignallingClient emit - creating answer from local peer-"+client_id);
+                    SignallingClient.getInstance().emitMessage(sessionDescription, client_id, peerkey);
+                }
+            }, new MediaConstraints());
+        }
     }
 
     /**
@@ -819,11 +1144,17 @@ public class MainActivity extends AppCompatActivity implements
      */
 
     @Override
-    public void onAnswerReceived(JSONObject data) {
+    public void onAnswerReceived(JSONObject data, String client_id, String from_client_id, String peerKey) {
         showToast("Received Answer");
+        Log.d(TAG, "onAnswerReceived: client (from " + from_client_id + ") for " + client_id);
+        Log.d(TAG, "onAnswerReceived: peerKey " + peerKey);
         try {
-            localPeer.setRemoteDescription(new CustomSdpObserver("localSetRemote"), new SessionDescription(SessionDescription.Type.fromCanonicalForm(data.getString("type").toLowerCase()), data.getString("sdp")));
-            updateVideoViews(true);
+            PeerConnection currPc = getPeerConnection(client_id, from_client_id, peerKey);
+            if (currPc != null) {
+                Log.d(TAG, "onAnswerReceived: setRemoteDescription client " + client_id);
+                currPc.setRemoteDescription(new CustomSdpObserver("localSetRemote-"+client_id), new SessionDescription(SessionDescription.Type.fromCanonicalForm(data.getString("type").toLowerCase()), data.getString("sdp")));
+                updateVideoViews(true);
+            }
         } catch (JSONException e) {
             e.printStackTrace();
         }
@@ -833,10 +1164,11 @@ public class MainActivity extends AppCompatActivity implements
      * Remote IceCandidate received
      */
     @Override
-    public void onIceCandidateReceived(JSONObject data) {
+    public void onIceCandidateReceived(JSONObject data, String client_id, String from_client_id, String peerKey) {
         try {
-            if (localPeer != null) {
-                localPeer.addIceCandidate(new IceCandidate(data.getString("id"), data.getInt("label"), data.getString("candidate")));
+            ClientPeerConnection cpc = getClientPeerConnection(client_id, from_client_id, peerKey);
+            if (cpc != null && cpc.getPeerConnection() != null && !cpc.isHasBeenEverConnected()) {
+                cpc.getPeerConnection().addIceCandidate(new IceCandidate(data.getString("id"), data.getInt("label"), data.getString("candidate")));
             }
         } catch (JSONException e) {
             e.printStackTrace();
@@ -906,58 +1238,35 @@ public class MainActivity extends AppCompatActivity implements
     }
 
     private void hideProgress() {
-        if (customProgress != null) {
-            customProgress.hideProgress();
-        }
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (customProgress != null) {
+                    customProgress.hideProgress();
+                }
+            }
+        });
     }
 
     private void hangup() {
-        //boolean isStarted = SignallingClient.getInstance().isStarted;
-        boolean isStarted = false;
         try {
-            if (isStarted) {
-                showProgress(true);
-            }
-            if (localPeer != null) {
-                localPeer.close();
-            }
-            localPeer = null;
             SignallingClient.getInstance().close();
+            //remoteVideoView.setVisibility(View.GONE);
+            //remoteVideoView2.setVisibility(View.GONE);
+            removeAllDataModelList();
             updateVideoViews(false);
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            localPeer = null;
+            peerConnectionList.clear();
             call.setEnabled(false);
             hangup.setEnabled(false);
-            remoteVideoView.setVisibility(View.GONE);
-            if (isStarted) {
-                new TimerTaskThread(this, new Callable<Object>() {
-                    @Override
-                    public Object call() throws Exception {
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                start.setEnabled(true);
-                            }
-                        });
-                        return null;
-                    }
-                }, new TimerTaskThread.ResultCallable() {
-                    @Override
-                    public void onResultCallable(Object result) {
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                hideProgress();
-                            }
-                        });
-                    }
-                }, TimeUnit.SECONDS.toMillis(15L))
-                .run();
-            } else {
-                start.setEnabled(true);
-            }
+            //remoteVideoView.setVisibility(View.GONE);
+            //remoteVideoView2.setVisibility(View.GONE);
+            removeAllDataModelList();
+            setTitle(getString(R.string.app_name));
+            getSupportActionBar().setSubtitle("");
+            start.setEnabled(true);
         }
     }
 

@@ -2,21 +2,34 @@
 
 var connections = {};
 
+Object.size = function(obj) {
+  var size = 0, key;
+  for (key in obj) {
+      if (obj.hasOwnProperty(key)) size++;
+  }
+  return size;
+};
+
 var isChannelReady = false;
 var isInitiator = false;
 var isStarted = false;
 var localStream;
 var pc;
+var pc2;
 var remoteStream;
 var turnReady;
 
 var pcConfig = {
-  'iceServers': [{
-    //'url': 'stun:stun.l.google.com:19302'
-    'url' : 'turn:202.51.110.214:8282',
-    'username' : 'eluon',
-    'credential' : 'eluon123'
-  }]
+  'iceServers': [
+    //{
+      //'url': 'stun:stun.l.google.com:19302'
+    //},
+    {
+      'url' : 'turn:202.51.110.214:8282',
+      'username' : 'eluon',
+      'credential' : 'eluon123'
+    }
+  ]
 };
 
 // Set up audio and video regardless of what devices are present.
@@ -30,15 +43,19 @@ var sdpConstraints = {
 /////////////////////////////////////////////
 
 // Could prompt for room name:
-var room = prompt('Enter room name:', 'vivek171');
+var room = prompt('Enter room name:', 'eluon');
 var clientID = null;
 
 if (room === '') {
-  room = 'vivek171';
+  room = 'eluon';
 }
 
 var localVideo = document.querySelector('#localVideo');
 var remoteVideo = document.querySelector('#remoteVideo');
+var remoteVideo2 = document.querySelector('#remoteVideo2');
+
+var socket = io.connect("http://127.0.0.1:1794");
+//var socket = io.connect("http://ns2.eluon.co.id:8282");
 
 navigator.mediaDevices.getUserMedia({
   audio: true,
@@ -60,9 +77,12 @@ function gotStream(stream) {
   }
   localStream = stream;
   trace('Received local stream.');
-  sendMessage('got user media');
+
+  socket.emit('create or join', room);
+  console.log('Attempted to create or join room', room);
+
   if (isInitiator) {
-    maybeStart();
+    maybeStart(clientID);
   }
 }
 
@@ -82,38 +102,44 @@ if (location.hostname !== 'localhost') {
 
 ////////////////////////////////////////////////////
 
-var socket = io.connect("http://127.0.0.1:1794");
-//var socket = io.connect("http://ns2.eluon.co.id:8282");
-socket.emit('create or join', room);
-console.log('Attempted to create or join room', room);
-
-socket.on('created', function(room, client_id) {
-  console.log('Created room : ' + room + ', Client ID : ' + client_id);
+socket.on('created', function(room, client_id, numClients, clients) {
+  console.log('Created room: ' + room + '('+numClients+' Clients)' + ', Client ID: ' + client_id);
+  console.log('All members: ' + clients);
   clientID = client_id;
   isInitiator = true;
+  if (typeof localStream !== 'undefined') {
+    sendMessage('got user media', clientID);
+  }
 });
 
 socket.on('full', function(room) {
   console.log('Room ' + room + ' is full');
 });
 
-socket.on('join', function (room, client_id){
-  console.log('Another peer (Client ID: ' + client_id + ') made a request to join room ' + room);
-  console.log('This peer is the initiator of room ' + room + '!');
+socket.on('join', function (room, client_id, numClients, clients){
+  console.log('Another peer (Client ID: ' + client_id + ') made a request to join room ' + room + '('+numClients+' Clients)');
+  console.log('All members: ' + clients);
+  if (isInitiator) {
+    console.log('This peer is the initiator of room ' + room + '!');
+  }
   isChannelReady = true;
-  // if (clientID != client_id) {
-  //   maybeStart();
-  // }
+  /*if (clientID != client_id) {
+    maybeStart(client_id);
+  }*/
 });
 
-socket.on('joined', function(room, client_id) {
-  console.log('Client ID: ' + client_id + ' has been joined in room: ' + room);
+socket.on('joined', function(room, client_id, numClients, clients) {
+  console.log('Client ID: ' + client_id + ' has been joined in room: ' + room + '('+numClients+' Clients)');
+  console.log('All members: ' + clients);
   isChannelReady = true;
   if (clientID == null) {
     clientID = client_id;
   }
-  if (clientID == client_id) {
-    maybeStart();
+  /*if (clientID == client_id) {
+    maybeStart(client_id);
+  }*/
+  if (typeof localStream !== 'undefined') {
+    sendMessage('got user media', clientID);
   }
 });
 
@@ -123,79 +149,103 @@ socket.on('log', function(array) {
 
 ////////////////////////////////////////////////
 
-function sendMessage(message) {
+function sendMessage(message, client_id) {
   console.log('Client sending message: ', message);
-  socket.emit('message', message, room);
+  socket.emit('message', message, room, client_id);
 }
 
 function sendRequestJoin(room, client_id) {
   console.log('Client sending request join with room: ' + room + ", Client ID: " + client_id);
-  socket.emit('join', room, client_id);
+  if (!isChannelReady && clientID != null && clientID != ''){
+    socket.emit('join', room, client_id);
+  }
 }
 
 // This client receives a message
-socket.on('message', function(message) {
+socket.on('message', function(message, room, client_id) {
   console.log('Client received message:', message);
 
   if (message === 'got user media') {
     if (isChannelReady) {
-      maybeStart();
+      maybeStart(client_id);
     } else if (clientID != null && clientID != ''){
       sendRequestJoin(room, clientID);
     }
   } else if (message.type === 'offer') {
+    console.log("Received offer client " + client_id);
     if (!isInitiator && !isStarted) {
-      maybeStart();
+      maybeStart(client_id);
     }
-    pc.setRemoteDescription(new RTCSessionDescription(message));
-    doAnswer();
+    var currPc = connections[client_id];
+    if (currPc) {
+      console.log("setRemoteDescription client " + client_id);
+      currPc.setRemoteDescription(new RTCSessionDescription(message));  
+      doAnswer(currPc, client_id);
+    }
   } else if (message.type === 'answer' && isStarted) {
     console.log("received answer");
-    pc.setRemoteDescription(new RTCSessionDescription(message));
+    var currPc = connections[client_id];
+    if (currPc) {
+      currPc.setRemoteDescription(new RTCSessionDescription(message));
+    }
   } else if (message.type === 'candidate' && isStarted) {
     var candidate = new RTCIceCandidate({
       sdpMLineIndex: message.label,
       candidate: message.candidate
     });
-    pc.addIceCandidate(candidate);
+    var currPc = connections[client_id];
+    if (currPc) {
+      currPc.addIceCandidate(candidate);
+    }
   } else if (message === 'bye' && isStarted) {
-    handleRemoteHangup();
+    handleRemoteHangup(client_id);
   }
 });
 
 /////////////////////////////////////////////////////////
 
-function maybeStart() {
+function maybeStart(client_id) {
   console.log('>>>>>>> maybeStart() ', isStarted, localStream, isChannelReady);
-  if ((isInitiator || !isStarted) && typeof localStream !== 'undefined') {
-    if (isChannelReady) {
-      if (!isStarted) {
-        console.log('>>>>>> creating peer connection');
-        createPeerConnection();
+  if ((isInitiator || !isStarted || clientID != client_id) && typeof localStream !== 'undefined') {
+    if (isChannelReady && clientID != null && typeof clientID !== 'undefined') {
+      var currPc = null;
+      if (!isStarted || clientID != client_id) {
+        if (!isStarted ) {
+          console.log('>>>>>> creating peer connection');
+          currPc = createPeerConnection(clientID);
+        } else if (clientID != client_id) {
+          delete connections[null];
+          currPc = connections[client_id];
+          if (currPc) {
+            //
+          } else {
+            currPc = createPeerConnection(client_id);
+          }
+        }
       }
-      // Add local stream to connection and create offer to connect.
-      pc.addStream(localStream);
-      trace('Added local stream to localPeerConnection.');
-      isStarted = true;
-      console.log('isInitiator', isInitiator);
-      if (isInitiator) {
-        doCall();
+      if (currPc != null && client_id != null) {
+        // Add local stream to connection and create offer to connect.
+        currPc.addStream(localStream);
+        trace('Added local stream to localPeerConnection.');
+        isStarted = true;
+        console.log('isInitiator', isInitiator);
+        if (isInitiator && clientID != null && clientID != client_id) {
+          doCall(currPc, client_id);
+        }
       }
     } else {
-      if (!isChannelReady && clientID != null && clientID != ''){
         sendRequestJoin(room, clientID);
-      }
     }
   }
 }
 
 window.onbeforeunload = function() {
-  sendMessage('bye');
+  sendMessage('bye', this.clientID);
 };
 
 /////////////////////////////////////////////////////////
 
-function createPeerConnection() {
+function createPeerConnection(client_id) {
   trace('Starting create peer connection');
 
   // // Get local media stream tracks.
@@ -210,25 +260,87 @@ function createPeerConnection() {
 
   const servers = null;  // Allows for RTC server configuration.
   try {
-    pc = new RTCPeerConnection(servers);
-    trace('Created local peer connection object localPeerConnection.');
-
-    pc.addEventListener('icecandidate', handleConnection);
-    pc.addEventListener('iceconnectionstatechange', handleConnectionChange);
-
-    pc.onicecandidate = handleIceCandidate;
-    if ('ontrack' in pc) {
-      pc.ontrack = handleRemoteStreamAdded;
-    } else {
-      // deprecated
-      pc.onaddstream = handleRemoteStreamAdded;
+    var currPc = null;
+    var isNew = false;
+    var isSecond = false;
+    if (!pc || typeof pc === 'undefined') {
+      pc = new RTCPeerConnection(servers);
+      trace('Created local peer connection object localPeerConnection.');
+      isNew = true;
+      connections[clientID] = pc;
+      if (clientID != client_id) {
+        connections[client_id] = pc;
+      }
+      currPc = pc;
     }
-    pc.onremovestream = handleRemoteStreamRemoved;
-    console.log('Created RTCPeerConnnection');
+    
+    if (currPc == null) {
+      if (pc) {
+        connections[clientID] = pc;
+      }
+      currPc = connections[client_id];
+      var sizeConn = Object.size(connections);
+      if (currPc) {
+        //
+      } else if (sizeConn == 1) {
+        isNew = true;
+        connections[clientID] = pc;
+        if (isInitiator) {
+          connections[client_id] = pc;
+        } else {
+          if (!pc2 || typeof pc2 === 'undefined') {
+            pc2 = new RTCPeerConnection(servers);
+            trace('Created local peer connection object localPeerConnection.');
+          }  
+          isSecond = true;
+          connections[client_id] = pc2;
+        }
+        currPc = connections[client_id];
+      } else if (sizeConn == 2 && isInitiator) {
+        isNew = true;
+        if (!pc2 || typeof pc2 === 'undefined') {
+          pc2 = new RTCPeerConnection(servers);
+          trace('Created local peer connection object localPeerConnection.');
+        }
+        isSecond = true;
+        connections[client_id] = pc2;
+        currPc = connections[client_id];
+      }
+    }
+    
+    if (currPc != null || isNew) {
+      currPc.addEventListener('icecandidate', handleConnection);
+      currPc.addEventListener('iceconnectionstatechange', handleConnectionChange);
+
+      //currPc.onicecandidate = handleIceCandidate;
+      currPc.onicecandidate = function (event) {
+        console.log('icecandidate event: ', event);
+        if (event.candidate) {
+          sendMessage({
+            type: 'candidate',
+            label: event.candidate.sdpMLineIndex,
+            id: event.candidate.sdpMid,
+            candidate: event.candidate.candidate
+          }, client_id);
+        } else {
+          console.log('End of candidates.');
+        }
+      };
+      if ('ontrack' in currPc) {
+        currPc.ontrack = isSecond ? handleRemoteStreamAdded2 : handleRemoteStreamAdded;
+      } else {
+        // deprecated
+        currPc.onaddstream = isSecond ? handleRemoteStreamAdded2 : handleRemoteStreamAdded;
+      }
+      currPc.onremovestream = handleRemoteStreamRemoved;
+      console.log('Created RTCPeerConnnection');
+    }
+
+    return currPc;
   } catch (e) {
     console.log('Failed to create PeerConnection, exception: ' + e.message);
     alert('Cannot create RTCPeerConnection object.');
-    return;
+    return null;
   }
 }
 
@@ -255,23 +367,34 @@ function setRemoteDescriptionSuccess(peerConnection) {
   setDescriptionSuccess(peerConnection, 'setRemoteDescription');
 }
 
-function handleIceCandidate(event) {
-  console.log('icecandidate event: ', event);
-  if (event.candidate) {
-    sendMessage({
-      type: 'candidate',
-      label: event.candidate.sdpMLineIndex,
-      id: event.candidate.sdpMid,
-      candidate: event.candidate.candidate
-    });
+// function handleIceCandidate(event) {
+//   console.log('icecandidate event: ', event);
+//   if (event.candidate) {
+//     sendMessage({
+//       type: 'candidate',
+//       label: event.candidate.sdpMLineIndex,
+//       id: event.candidate.sdpMid,
+//       candidate: event.candidate.candidate
+//     }, );
+//   } else {
+//     console.log('End of candidates.');
+//   }
+// }
+
+function handleRemoteStreamAdded2(event) {
+  console.log('Remote 2nd stream added.');
+  if ('srcObject' in remoteVideo2 || remoteVideo2.srcObject !== event.streams[0]) {
+    remoteVideo2.srcObject = event.streams[0];
   } else {
-    console.log('End of candidates.');
+    // deprecated
+    remoteVideo2.src = window.URL.createObjectURL(event.stream);
   }
+  remoteVideo2 = event.stream;
 }
 
 function handleRemoteStreamAdded(event) {
   console.log('Remote stream added.');
-  if ('srcObject' in remoteVideo) {
+  if ('srcObject' in remoteVideo || remoteVideo.srcObject !== event.streams[0]) {
     remoteVideo.srcObject = event.streams[0];
   } else {
     // deprecated
@@ -326,34 +449,61 @@ function handleConnectionChange(event) {
         `${peerConnection.iceConnectionState}.`);
 }
 
-function doCall() {
-  console.log('Sending offer to peer');
-  pc.createOffer(setLocalAndSendMessage, handleCreateOfferError);
+function doCall(currPc, client_id) {
+  console.log('Sending offer to peer to' + client_id);
+  currPc.createOffer(
+    //setLocalAndSendMessage, 
+    function(sessionDescription){
+      currPc.setLocalDescription(sessionDescription)
+      .then(() => {
+        setLocalDescriptionSuccess(currPc);
+      }).catch(setSessionDescriptionError);
+
+      console.log('setLocalAndSendMessage sending message-'+client_id, sessionDescription);
+      sendMessage(sessionDescription, client_id);
+    },
+    handleCreateOfferError);
 }
 
-function doAnswer() {
-  trace('createAnswer start.');
-  console.log('Sending answer to peer.');
-  pc.createAnswer().then(
-    setLocalAndSendMessage,
+function doAnswer(currPc, client_id) {
+  trace('createAnswer start to ' + client_id);
+  console.log('Sending answer to peer-' + client_id);
+  currPc.createAnswer().then(
+    //setLocalAndSendMessage,
+    function(sessionDescription){
+      currPc.setLocalDescription(sessionDescription)
+      .then(() => {
+        setLocalDescriptionSuccess(currPc);
+      }).catch(setSessionDescriptionError);
+
+      console.log('setLocalAndSendMessage sending message-'+client_id, sessionDescription);
+      sendMessage(sessionDescription, client_id);
+    },
     setSessionDescriptionError
   );
 }
 
-function setLocalAndSendMessage(sessionDescription) {
-  trace(`Offer from localPeerConnection:\n${sessionDescription.sdp}`);
+// function setLocalAndSendMessage(sessionDescription) {
+//   trace(`Offer from localPeerConnection:\nclient_id: ${sessionDescription.client_id}\nsdp: ${sessionDescription.sdp}`);
 
-  // Set Opus as the preferred codec in SDP if Opus is present.
-  //  sessionDescription.sdp = preferOpus(sessionDescription.sdp);
-  trace('localPeerConnection setLocalDescription start.');
-  pc.setLocalDescription(sessionDescription)
-  .then(() => {
-    setLocalDescriptionSuccess(pc);
-  }).catch(setSessionDescriptionError);
+//   // Set Opus as the preferred codec in SDP if Opus is present.
+//   //  sessionDescription.sdp = preferOpus(sessionDescription.sdp);
+//   trace('localPeerConnection setLocalDescription start.');
+//   var cid = `${sessionDescription.client_id}`;
+//   if (!cid || typeof cid === 'undefined') {
+//     cid = clientID;
+//   }
+//   var currPc = connections[cid];
+//   if (currPc) {
+//     currPc.setLocalDescription(sessionDescription)
+//     .then(() => {
+//       setLocalDescriptionSuccess(currPc);
+//     }).catch(setSessionDescriptionError);
+//   }
   
-  console.log('setLocalAndSendMessage sending message', sessionDescription);
-  sendMessage(sessionDescription);
-}
+//   console.log('setLocalAndSendMessage sending message', sessionDescription);
+//   sendMessage(sessionDescription, clientID);
+// }
 
 function requestTurn(turnURL) {
   var turnExists = false;
@@ -390,16 +540,17 @@ function handleRemoteStreamRemoved(event) {
 
 function hangup() {
   console.log('Hanging up.');
+  sendMessage('bye', clientID);
   clientID = null;
   stop();
-  sendMessage('bye');
 }
 
-function handleRemoteHangup() {
+function handleRemoteHangup(client_id) {
   console.log('Session terminated.');
-  clientID = null;
-  stop();
-  isInitiator = false;
+  delete connections[client_id];
+  //clientID = null;
+  //stop();
+  //isInitiator = false;
 }
 
 function stop() {
@@ -409,6 +560,8 @@ function stop() {
   // isVideoMuted = false;
   pc.close();
   pc = null;
+  pc2.close();
+  pc2 = null;
 }
 
 ///////////////////////////////////////////

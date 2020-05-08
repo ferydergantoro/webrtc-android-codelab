@@ -1,8 +1,10 @@
 package xyz.vivekc.webrtccodelab;
 
+import android.app.Activity;
 import android.content.Context;
 import android.graphics.Color;
 import android.support.v7.widget.RecyclerView;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -10,29 +12,45 @@ import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
+import org.webrtc.EglBase;
+import org.webrtc.MediaStream;
+import org.webrtc.SurfaceViewRenderer;
+import org.webrtc.VideoTrack;
+
 import java.util.ArrayList;
 
 
 @SuppressWarnings("ALL")
 public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapter.ViewHolder> {
 
+    static String TAG = "RecyclerViewAdapter";
+
     ArrayList<DataModel> mValues;
     Context mContext;
+    Activity mActivity;
     protected ItemListener mListener;
 
-    public RecyclerViewAdapter(Context context, ArrayList<DataModel> values, ItemListener itemListener) {
-
+    private RecyclerViewAdapter(Context context, Activity activity, ArrayList<DataModel> values, ItemListener itemListener) {
         mValues = values;
+        mActivity = activity;
         mContext = context;
         mListener=itemListener;
+    }
+
+    public RecyclerViewAdapter(Activity activity, ArrayList<DataModel> values, ItemListener itemListener) {
+        this(activity.getApplicationContext(), activity, values, itemListener);
+        mActivity = activity;
     }
 
     public class ViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
 
         public TextView textView;
         public ImageView imageView;
+        public SurfaceViewRenderer remoteVideoView;
         public RelativeLayout relativeLayout;
         DataModel item;
+
+        EglBase rootEglBase;
 
         public ViewHolder(View v) {
 
@@ -41,17 +59,49 @@ public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapte
             v.setOnClickListener(this);
             textView = (TextView) v.findViewById(R.id.textView);
             imageView = (ImageView) v.findViewById(R.id.imageView);
+            remoteVideoView = (SurfaceViewRenderer) v.findViewById(R.id.remote_gl_surface_view);
             relativeLayout = (RelativeLayout) v.findViewById(R.id.relativeLayout);
 
+            initVideos();
+        }
+
+        private void initVideos() {
+            rootEglBase = EglBase.create();
+            remoteVideoView.init(rootEglBase.getEglBaseContext(), null);
+            remoteVideoView.setZOrderMediaOverlay(false);
+            remoteVideoView.setEnableHardwareScaler(true);
+            remoteVideoView.setMirror(true);
+            //remoteVideoView.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL);
         }
 
         public void setData(DataModel item) {
             this.item = item;
 
-            textView.setText(item.text);
-            imageView.setImageResource(item.drawable);
-            relativeLayout.setBackgroundColor(Color.parseColor(item.color));
+            textView.setText(this.item.text);
+            imageView.setImageResource(this.item.drawable);
+            relativeLayout.setBackgroundColor(Color.parseColor(this.item.color));
+            gotRemoteStream(this.item.mediaStream);
+            //gotRemoteStream(this.item.videoTrack);
+        }
 
+        private void gotRemoteStream(MediaStream mediaStream) {
+            //we have remote video stream. add to the renderer.
+            final VideoTrack videoTrack = mediaStream.videoTracks.get(0);
+            mActivity.runOnUiThread(() -> {
+                gotRemoteStream(videoTrack);
+            });
+        }
+
+        private void gotRemoteStream(final VideoTrack videoTrack) {
+            mActivity.runOnUiThread(() -> {
+                try {
+                    remoteVideoView.setVisibility(View.VISIBLE);
+                    videoTrack.setEnabled(true);
+                    videoTrack.addSink(remoteVideoView);
+                } catch (Exception e) {
+                    Log.e(this.getClass().getSimpleName(), "gotRemoteStream: ", e);
+                }
+            });
         }
 
 
@@ -79,7 +129,6 @@ public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapte
 
     @Override
     public int getItemCount() {
-
         return mValues.size();
     }
 
