@@ -29,18 +29,50 @@ io.sockets.on('connection', function(socket) {
     socket.emit('log', array);
   }
 
+  socket.on('offer', function(message_offer, room, client_id, from_client_id, peerkey){
+    log('Offer ' + from_client_id + ' to client ' + client_id + ' in room ' + room);
+    console.log('Offer ' + from_client_id + ' to client ' + client_id + ' in room ' + room);
+
+    //var arraySockets = Object.keys(io.sockets.in(room).clients().sockets);
+
+    io.to(client_id).emit('offer', message_offer, room, client_id, from_client_id, peerkey/*, arraySockets*/);
+  });
+
+  socket.on('answer', function(message_offer, room, client_id, from_client_id, peerkey){
+    log('Answer ' + from_client_id + ' to client ' + client_id + ' in room ' + room);
+    console.log('Answer ' + from_client_id + ' to client ' + client_id + ' in room ' + room);
+
+    //var arraySockets = Object.keys(io.sockets.in(room).clients().sockets);
+
+    io.to(client_id).emit('answer', message_offer, room, client_id, from_client_id, peerkey/*, arraySockets*/);
+  });
+
+  socket.on('icecandidate', function(message_ice, room, client_id, from_client_id, peerkey){
+    log('Ice Candidate ' + from_client_id + ' to client ' + client_id + ' in room ' + room);
+    console.log('Ice Candidate ' + from_client_id + ' to client ' + client_id + ' in room ' + room);
+
+    //var arraySockets = Object.keys(io.sockets.in(room).clients().sockets);
+
+    io.to(client_id).emit('icecandidate', message_ice, room, client_id, from_client_id, peerkey/*, arraySockets*/);
+  });
+
+  socket.on('connected', function(room, client_id, from_client_id){
+    log('Client ' + from_client_id + ' have connected to client ' + client_id + ' in room ' + room);
+    console.log('Client ' + from_client_id + ' have connected to client ' + client_id + ' in room ' + room);
+
+    var arraySockets = Object.keys(io.sockets.in(room).clients().sockets);
+
+    io.sockets.in(room).emit('connected', room, client_id, from_client_id, arraySockets);
+  });
+
   socket.on('message', function(message, room, client_id, from_client_id, peerkey) {
     log('Client said: ', message);
     console.log('Client '+ client_id +' said: ' + message + ' in room: ' + room);
 
     // for a real app, would be room-only (not broadcast)
     console.log('Echo to all Client: ' + message + ' in room: ' + room + ' from client: ' + client_id);
-    //io.to(room).emit('message', message, room);
-    //io.to(client_id).emit('message', message, room, client_id);
-    //socket.emit('message', message, room, client_id);
-
+    
     //socket.broadcast.emit('message', message, room, client_id);
-    //io.sockets.emit('message', message, room, client_id);
     io.sockets.in(room).emit('message', message, room, client_id, from_client_id, peerkey);
   });
 
@@ -72,14 +104,13 @@ io.sockets.on('connection', function(socket) {
       log('Client ID ' + socket.id + ' created room ' + room);
       console.log('Client ID ' + socket.id + ' created room ' + room);
       
-      var arraySockets = Object.keys(io.sockets.clients().sockets);
+      var arraySockets = Object.keys(io.sockets.in(room).clients().sockets);
       console.log('arraySockets: ' + arraySockets);
 
       var clientsInRoom = io.sockets.adapter.rooms[room];
       numClients = clientsInRoom ? Object.keys(clientsInRoom.sockets).length : 0;
 
       socket.emit('created', room, socket.id, numClients, arraySockets);
-      //io.sockets.in(room).emit('created', room, socket.id, numClients, Object.keys(clientsInRoom.sockets));
 
       log('Room ' + room + ' now has 1 client');
       console.log('Room ' + room + ' now has 1 client');
@@ -89,28 +120,29 @@ io.sockets.on('connection', function(socket) {
   });
 
   function joinAck(room, numClients) {
-    if (numClients <= 2) {
+    //if (numClients <= 2) {
       log('Client ID ' + socket.id + ' joined room ' + room);
       console.log('Client ID ' + socket.id + ' joined room ' + room);
-      var clientsInRoom = io.sockets.adapter.rooms[room];
-      var arraySockets = Object.keys(io.sockets.clients().sockets);
-      console.log('Clients are: ' + arraySockets);
-      io.sockets.in(room).emit('join', room, socket.id, arraySockets.length, arraySockets);
+      
       socket.join(room);
 
-      clientsInRoom = io.sockets.adapter.rooms[room];
-      arraySockets = Object.keys(io.sockets.clients().sockets);
+      var clientsInRoom = io.sockets.adapter.rooms[room];
+      var arraySockets = Object.keys(io.sockets.in(room).clients().sockets);
+      console.log('Clients are: ' + arraySockets);
+      
       numClients = clientsInRoom ? Object.keys(clientsInRoom.sockets).length : 0;
       
       socket.emit('joined', room, socket.id, numClients, arraySockets);
       //io.sockets.in(room).emit('joined', room, socket.id, numClients, arraySockets);
       io.sockets.in(room).emit('ready');
 
+      io.sockets.in(room).emit('join', room, socket.id, arraySockets.length, arraySockets);
+
       log('Room ' + room + ' now has ' + numClients + ' client(s)');
       console.log('Room ' + room + ' now has ' + numClients + ' client(s)');
-    } else { // max 3 clients
-      socket.emit('full', room);
-    }
+    //} else { // max 3 clients
+    //  socket.emit('full', room);
+    //}
   }
 
   socket.on('ipaddr', function() {
@@ -129,13 +161,11 @@ io.sockets.on('connection', function(socket) {
     console.log('received bye from ClientID: ' + client_id + ', in room: ' + room);
     console.log('Emit to all Client: ' + message + ' in room: ' + room + ' from client: ' + client_id);
 
-    var clientsInRoom = io.sockets.adapter.rooms[room];
-    var numClients = clientsInRoom ? Object.keys(clientsInRoom.sockets).length : 0;
-    var arraySockets = Object.keys(io.sockets.clients().sockets);
+    var arraySockets = Object.keys(io.sockets.in(room).clients().sockets);
     arraySockets = arraySockets.remove(client_id);
 
     //socket.broadcast.emit('message', message, room, client_id);
-    io.sockets.in(room).emit('message', message, room, client_id, arraySockets.length, arraySockets);
+    socket.to(room).emit('message', message, room, client_id, arraySockets.length, arraySockets);
   });
 
   Array.prototype.remove = function() {
