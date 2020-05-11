@@ -100,8 +100,8 @@ class SignallingClient {
             IO.setDefaultSSLContext(sslcontext);
             //set the socket.io url here
             //socket = IO.socket("http://127.0.0.1:1794");
-            socket = IO.socket("http://192.168.43.105:1794");
-            //socket = IO.socket("https://202.51.110.214:8092");
+            //socket = IO.socket("http://192.168.43.105:1794");
+            socket = IO.socket("https://202.51.110.214:8092");
             socket.connect();
             Log.d("SignallingClient", "init() called");
 
@@ -114,7 +114,7 @@ class SignallingClient {
                 Log.d("SignallingClient", "created call() called with: args = [" + Arrays.toString(args) + "]");
                 clientID = String.valueOf(args[1]);
                 int numClients = (int) args[2];
-                ArrayList<String> clients = jsonArrayToArrayList((JSONArray) args[3]);
+                ArrayList<String> clients = args[3] != null ? jsonArrayToArrayList((JSONArray) args[3]) : new ArrayList<String>();
                 isInitiator = true;
                 callback.onCreatedRoom(clientID, numClients, clients);
             });
@@ -128,7 +128,7 @@ class SignallingClient {
                 isChannelReady = true;
                 String client_id = String.valueOf(args[1]);
                 int numClients = (int) args[2];
-                ArrayList<String> clients = jsonArrayToArrayList((JSONArray) args[3]);
+                ArrayList<String> clients = args[3] != null ? jsonArrayToArrayList((JSONArray) args[3]) : new ArrayList<String>();
                 callback.onNewPeerJoined(client_id, numClients, clients);
             });
 
@@ -138,7 +138,7 @@ class SignallingClient {
                 isChannelReady = true;
                 String client_id = String.valueOf(args[1]);
                 int numClients = (int) args[2];
-                ArrayList<String> clients = jsonArrayToArrayList((JSONArray) args[3]);
+                ArrayList<String> clients = args[3] != null ? jsonArrayToArrayList((JSONArray) args[3]) : new ArrayList<String>();
                 if (clientID == null) {
                     clientID = client_id;
                 }
@@ -146,6 +146,97 @@ class SignallingClient {
                     callback.onTryToStart(client_id);
                 }*/
                 callback.onJoinedRoom(client_id, numClients, clients);
+            });
+
+            socket.on("connected", args -> {
+                Log.d("SignallingClient", "connected call() called with: args = [" + Arrays.toString(args) + "]");
+                String room = String.valueOf(args[0]);
+                String client_id = String.valueOf(args[1]);
+                String from_client_id = String.valueOf(args[2]);
+                ArrayList<String> clients = args[3] != null ? jsonArrayToArrayList((JSONArray) args[3]) : new ArrayList<String>();
+                if (!client_id.equals(clientID) && clients.size() > 2) {
+                    int idxFromClient = clients.indexOf(from_client_id);
+                    if ((idxFromClient >= 0) && (idxFromClient < (clients.size() - 1))) {
+                        String nextClientId = clients.get(idxFromClient + 1);
+                        if (nextClientId != null && nextClientId.equals(clientID) && !nextClientId.equals(client_id)) {
+                            Log.d("SignallingClient", "its my turn for my clientID " + clientID + " to connect client " + client_id);
+                            //Log.d("SignallingClient", "TryToStart: " + client_id);
+                            //callback.onTryToStart(client_id, true);
+                        }
+                    }
+                }
+            });
+
+            socket.on("offer", args -> {
+                Log.d("SignallingClient", "offer call() called with: args = [" + Arrays.toString(args) + "]");
+                Log.d("SignallingClient", "offer String received :: " + args[0]);
+                if (args[0] instanceof JSONObject) {
+                    String room = String.valueOf(args[1]);
+                    String client_id = String.valueOf(args[2]);
+                    if (room.equals(roomName) && client_id.equals(clientID)) {
+                        JSONObject data = (JSONObject) args[0];
+                        Log.d("SignallingClient", "offer Json Received :: " + data.toString());
+                        try {
+                            String type = data.getString("type");
+                            if (type.equalsIgnoreCase("offer") && isStarted) {
+                                String from_client_id = String.valueOf(args[3]);
+                                String peerkey = String.valueOf(args[4]);
+                                //ArrayList<String> clients = args[5] != null ? jsonArrayToArrayList((JSONArray) args[5]) : new ArrayList<String>();
+                                callback.onOfferReceived(data, client_id, from_client_id, peerkey);
+                            }
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            });
+
+            socket.on("answer", args -> {
+                Log.d("SignallingClient", "answer call() called with: args = [" + Arrays.toString(args) + "]");
+                Log.d("SignallingClient", "answer String received :: " + args[0]);
+                if (args[0] instanceof JSONObject) {
+                    String room = String.valueOf(args[1]);
+                    String client_id = String.valueOf(args[2]);
+                    if (room.equals(roomName) && client_id.equals(clientID)) {
+                        JSONObject data = (JSONObject) args[0];
+                        Log.d("SignallingClient", "answer Json Received :: " + data.toString());
+                        try {
+                            String type = data.getString("type");
+                            if (type.equalsIgnoreCase("answer") && isStarted) {
+                                String from_client_id = String.valueOf(args[3]);
+                                String peerkey = String.valueOf(args[4]);
+                                //ArrayList<String> clients = args[5] != null ? jsonArrayToArrayList((JSONArray) args[5]) : new ArrayList<String>();
+                                callback.onAnswerReceived(data, client_id, from_client_id, peerkey);
+                            }
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            });
+
+            socket.on("icecandidate", args -> {
+                Log.d("SignallingClient", "icecandidate call() called with: args = [" + Arrays.toString(args) + "]");
+                Log.d("SignallingClient", "icecandidate String received :: " + args[0]);
+                if (args[0] instanceof JSONObject) {
+                    String room = String.valueOf(args[1]);
+                    String client_id = String.valueOf(args[2]);
+                    if (room.equals(roomName) && client_id.equals(clientID)) {
+                        JSONObject data = (JSONObject) args[0];
+                        Log.d("SignallingClient", "icecandidate Json Received :: " + data.toString());
+                        try {
+                            String type = data.getString("type");
+                            if (type.equalsIgnoreCase("candidate") && isStarted) {
+                                String from_client_id = String.valueOf(args[3]);
+                                String peerkey = String.valueOf(args[4]);
+                                //ArrayList<String> clients = args[5] != null ? jsonArrayToArrayList((JSONArray) args[5]) : new ArrayList<String>();
+                                callback.onIceCandidateReceived(data, client_id, from_client_id, peerkey);
+                            }
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
             });
 
             //log event
@@ -159,7 +250,7 @@ class SignallingClient {
                     String the_room = (String) args[1];
                     String client_id = (String) args[2];
                     int numClients = (int) args[3];
-                    ArrayList<String> clients = jsonArrayToArrayList((JSONArray) args[4]);
+                    ArrayList<String> clients = args[4] != null ? jsonArrayToArrayList((JSONArray) args[4]) : new ArrayList<String>();
                     isInitiator = (clientID != null && clients.size() > 0) ? clientID.equals(clients.get(0)) : false;
                     Log.d("SignallingClient", "isInitiator: " + isInitiator);
                     callback.onRemoteHangUp(data, client_id, numClients, clients);
@@ -175,15 +266,18 @@ class SignallingClient {
                     String the_room = (String) args[1];
                     String client_Id = (String) args[2];
                     if (data.equalsIgnoreCase("got user media")) {
-                        if (isChannelReady) {
-                            callback.onTryToStart(client_Id);
-                        } else if (clientID != null && !clientID.isEmpty()){
-                            emitJoin(roomName, clientID);
+                        /*if (isChannelReady && !client_Id.equals(clientID)) {
+                            callback.onTryToStart(client_Id, false);
+                        } else*/
+                        if (!isChannelReady) {
+                            if (clientID != null && !clientID.isEmpty()){
+                                emitJoin(roomName, clientID);
+                            }
                         }
                     }
                     if (data.equalsIgnoreCase("bye")) {
                         int numClients = (int) args[3];
-                        ArrayList<String> clients = jsonArrayToArrayList((JSONArray) args[4]);
+                        ArrayList<String> clients = args[4] != null ? jsonArrayToArrayList((JSONArray) args[4]) : new ArrayList<String>();
                         isInitiator = (clientID != null && clients.size() > 0) ? clientID.equals(clients.get(0)) : false;
                         Log.d("SignallingClient", "isInitiator: " + isInitiator);
                         callback.onRemoteHangUp(data, client_Id, numClients, clients);
@@ -240,14 +334,28 @@ class SignallingClient {
         socket.emit("join", room, clientID);
     }
 
+    public void emitConnected(String client_id) {
+        Log.d("SignallingClient", "emitConnected() called with: event = [" + "connected" + "], room = [" + roomName + "], from clientID = [" + clientID + "], to client_id = [" + client_id + "]");
+        socket.emit("connected", roomName, client_id, clientID);
+    }
+
     public void emitMessage(SessionDescription message, String client_id, String peerkey) {
         try {
             Log.d("SignallingClient", "emitMessage() called with: message = [" + message + "]");
             JSONObject obj = new JSONObject();
-            obj.put("type", message.type.canonicalForm());
+            String type = message.type.canonicalForm();
+            obj.put("type", type);
             obj.put("sdp", message.description);
             Log.d("emitMessage", obj.toString());
-            socket.emit("message", obj, roomName, client_id, clientID, peerkey);
+            /*if (type.equalsIgnoreCase("offer")) {
+                socket.emit("offer", obj, roomName, client_id, clientID, peerkey);
+            } else if (type.equalsIgnoreCase("answer") && isStarted) {
+                socket.emit("answer", obj, roomName, client_id, clientID, peerkey);
+            } else if (type.equalsIgnoreCase("candidate") && isStarted) {
+                socket.emit("icecandidate", obj, roomName, client_id, clientID, peerkey);
+            } else { */
+                socket.emit("message", obj, roomName, client_id, clientID, peerkey);
+            //}
             Log.d("vivek1794", obj.toString());
         } catch (JSONException e) {
             e.printStackTrace();
@@ -263,6 +371,7 @@ class SignallingClient {
             object.put("id", iceCandidate.sdpMid);
             object.put("candidate", iceCandidate.sdp);
             socket.emit("message", object, roomName, client_id, clientID, peerkey);
+            //socket.emit("icecandidate", object, roomName, client_id, clientID, peerkey);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -287,7 +396,7 @@ class SignallingClient {
 
         void onIceCandidateReceived(JSONObject data, String client_id, String from_client_id, String peerkey);
 
-        void onTryToStart(String client_id);
+        void onTryToStart(String client_id, boolean isNeedCall);
 
         void onCreatedRoom(String client_id, int numClients, ArrayList clients);
 

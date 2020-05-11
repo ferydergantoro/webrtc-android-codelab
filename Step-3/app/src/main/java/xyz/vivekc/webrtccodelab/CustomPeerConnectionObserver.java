@@ -22,19 +22,17 @@ import lombok.Data;
 class CustomPeerConnectionObserver implements PeerConnection.Observer {
 
     private String logTag;
-    private boolean isInitiator;
     private String peerKey;
     private String remoteClientId;
     private int index;
 
-    CustomPeerConnectionObserver(String logTag, int index, String remoteClientId, String peerKey, boolean isInitiator) {
+    CustomPeerConnectionObserver(String logTag, int index, String remoteClientId, String peerKey) {
         //this.logTag = this.getClass().getCanonicalName();
         this.logTag = this.getClass().getSimpleName();
         this.logTag = this.logTag + " " + logTag;
         this.index = index;
         this.remoteClientId = remoteClientId;
         this.peerKey = peerKey;
-        this.isInitiator = isInitiator;
     }
 
     public String getRemoteClientId() {
@@ -43,10 +41,6 @@ class CustomPeerConnectionObserver implements PeerConnection.Observer {
 
     public String getPeerKey() {
         return peerKey;
-    }
-
-    public boolean isInitiator() {
-        return isInitiator;
     }
 
     @Override

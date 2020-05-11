@@ -10,8 +10,10 @@ import org.webrtc.VideoTrack;
 @SuppressWarnings("ALL")
 public class DataModel {
 
+    public int index;
     public String peerKey;
     public String remoteClientId;
+    public boolean isInitiator;
     public MediaStream mediaStream;
     public VideoTrack videoTrack;
     public String text;
@@ -24,10 +26,12 @@ public class DataModel {
         color=c;
     }
 
-    public DataModel(int drawable, String color, String peerKey, String remoteClientId) {
+    public DataModel(int drawable, String color, String peerKey, String remoteClientId, int index, boolean isInitiator) {
         this("ID " + remoteClientId, drawable, color);
         this.peerKey = peerKey;
         this.remoteClientId = remoteClientId;
+        this.index = index;
+        this.isInitiator = isInitiator;
     }
 
     public void setRemoteClientId(String remoteClientId) {

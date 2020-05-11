@@ -20,40 +20,55 @@
         tools:ignore="ObsoleteLayoutParam,RedundantNamespace"
         >
 
-        <LinearLayout
+        <!--<ScrollView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:weightSum="2"
-            android:orientation="vertical"
-            tools:ignore="ObsoleteLayoutParam"
-            >
+            android:scrollbars="none">-->
 
-            <org.webrtc.SurfaceViewRenderer
-                android:id="@+id/remote_gl_surface_view"
-                android:layout_width="match_parent"
-                android:layout_weight="1"
-                android:visibility="gone"
-                android:layout_height="match_parent" />
-
-            <org.webrtc.SurfaceViewRenderer
-                android:id="@+id/remote_gl_surface_view2"
-                android:layout_width="match_parent"
-                android:layout_weight="1"
-                android:visibility="gone"
-                android:layout_height="match_parent" />
-
-            <android.support.v7.widget.RecyclerView
-                android:id="@+id/recyclerView"
+            <LinearLayout
+                android:id="@+id/remote_video_view_layout"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:scrollbars="vertical"
-                app:layout_behavior="@string/appbar_scrolling_view_behavior"
-                android:background="#F5F5F5"
-                tools:ignore="PrivateResource"
-                />
+                android:layout_weight="1"
+                android:weightSum="2"
+                android:orientation="vertical"
+                tools:ignore="ObsoleteLayoutParam,ScrollViewSize"
+                >
 
-        </LinearLayout>
+                <!--<org.webrtc.SurfaceViewRenderer
+                    android:id="@+id/remote_gl_surface_view"
+                    android:layout_width="match_parent"
+                    android:layout_weight="1"
+                    android:visibility="gone"
+                    android:layout_height="match_parent" />
+
+                <org.webrtc.SurfaceViewRenderer
+                    android:id="@+id/remote_gl_surface_view2"
+                    android:layout_width="match_parent"
+                    android:layout_weight="1"
+                    android:visibility="gone"
+                    android:layout_height="match_parent" />
+
+                <org.webrtc.SurfaceViewRenderer
+                    android:id="@+id/remote_gl_surface_view3"
+                    android:layout_width="match_parent"
+                    android:layout_weight="1"
+                    android:visibility="gone"
+                    android:layout_height="match_parent" />-->
+
+                <android.support.v7.widget.RecyclerView
+                    android:id="@+id/recyclerView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scrollbars="vertical"
+                    app:layout_behavior="@string/appbar_scrolling_view_behavior"
+                    android:background="#F5F5F5"
+                    tools:ignore="PrivateResource"
+                    />
+
+            </LinearLayout>
+
+        <!--</ScrollView>-->
 
         <org.webrtc.SurfaceViewRenderer
             android:id="@+id/local_gl_surface_view"

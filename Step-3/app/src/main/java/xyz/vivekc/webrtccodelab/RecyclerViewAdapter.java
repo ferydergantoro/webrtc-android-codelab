@@ -12,7 +12,6 @@ import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
-import org.webrtc.EglBase;
 import org.webrtc.MediaStream;
 import org.webrtc.SurfaceViewRenderer;
 import org.webrtc.VideoTrack;
@@ -50,8 +49,6 @@ public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapte
         public RelativeLayout relativeLayout;
         DataModel item;
 
-        EglBase rootEglBase;
-
         public ViewHolder(View v) {
 
             super(v);
@@ -66,8 +63,7 @@ public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapte
         }
 
         private void initVideos() {
-            rootEglBase = EglBase.create();
-            remoteVideoView.init(rootEglBase.getEglBaseContext(), null);
+            remoteVideoView.init(((MainActivity) mActivity).rootEglBase.getEglBaseContext(), null);
             remoteVideoView.setZOrderMediaOverlay(false);
             remoteVideoView.setEnableHardwareScaler(true);
             remoteVideoView.setMirror(true);
@@ -85,11 +81,13 @@ public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapte
         }
 
         private void gotRemoteStream(MediaStream mediaStream) {
-            //we have remote video stream. add to the renderer.
-            final VideoTrack videoTrack = mediaStream.videoTracks.get(0);
-            mActivity.runOnUiThread(() -> {
-                gotRemoteStream(videoTrack);
-            });
+            if (mediaStream.videoTracks.size() > 0) {
+                //we have remote video stream. add to the renderer.
+                final VideoTrack videoTrack = mediaStream.videoTracks.get(0);
+                mActivity.runOnUiThread(() -> {
+                    gotRemoteStream(videoTrack);
+                });
+            }
         }
 
         private void gotRemoteStream(final VideoTrack videoTrack) {
