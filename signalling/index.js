@@ -56,6 +56,11 @@ io.sockets.on('connection', function(socket) {
     io.to(client_id).emit('icecandidate', message_ice, room, client_id, from_client_id, peerkey/*, arraySockets*/);
   });
 
+  socket.on('icecandidate state', function(message_ice_state, room, client_id, from_client_id, peerkey){
+    log('Ice Candidate State ' + message_ice_state + ' from ' + from_client_id + ' to client ' + client_id + ' in room ' + room);
+    console.log('Ice Candidate State ' + message_ice_state + ' from ' + from_client_id + ' to client ' + client_id + ' in room ' + room);
+  });
+
   socket.on('connected', function(room, client_id, from_client_id){
     log('Client ' + from_client_id + ' have connected to client ' + client_id + ' in room ' + room);
     console.log('Client ' + from_client_id + ' have connected to client ' + client_id + ' in room ' + room);
