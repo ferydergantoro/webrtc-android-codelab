@@ -27,20 +27,13 @@ class CustomPeerConnectionObserver implements PeerConnection.Observer {
     private int index;
 
     CustomPeerConnectionObserver(String logTag, int index, String remoteClientId, String peerKey) {
-        //this.logTag = this.getClass().getCanonicalName();
-        this.logTag = this.getClass().getSimpleName();
-        this.logTag = this.logTag + " " + logTag;
         this.index = index;
         this.remoteClientId = remoteClientId;
         this.peerKey = peerKey;
-    }
 
-    public String getRemoteClientId() {
-        return remoteClientId;
-    }
-
-    public String getPeerKey() {
-        return peerKey;
+        //this.logTag = this.getClass().getCanonicalName();
+        this.logTag = this.getClass().getSimpleName();
+        this.logTag = this.logTag + " " + logTag + "-" + this.remoteClientId;
     }
 
     @Override
