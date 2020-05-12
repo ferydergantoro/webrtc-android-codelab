@@ -7,6 +7,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.webrtc.IceCandidate;
+import org.webrtc.PeerConnection;
 import org.webrtc.SessionDescription;
 
 import java.net.URISyntaxException;
@@ -375,6 +376,11 @@ class SignallingClient {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    public void emitIceCandidateState(PeerConnection.IceConnectionState iceConnectionState, String client_id, String peerkey) {
+        Log.d("SignallingClient", "emitIceCandidateState() called with: iceConnectionState = [" + iceConnectionState + "] peer client " + client_id +  " with peer key " + peerkey);
+        socket.emit("icecandidate state", iceConnectionState, roomName, client_id, clientID, peerkey);
     }
     
     public void close() {
